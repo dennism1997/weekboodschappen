@@ -1,0 +1,3 @@
+boodschappen.mouwen.casa {
+    reverse_proxy app:3001
+}
