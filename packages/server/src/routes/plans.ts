@@ -4,7 +4,6 @@ import {
   weeklyPlan,
   weeklyPlanRecipe,
   recipe,
-  household,
   groceryList,
 } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
@@ -81,8 +80,7 @@ router.post("/", (req, res) => {
     return;
   }
 
-  const hh = db.select().from(household).where(eq(household.id, householdId)).get();
-  const store = req.body.store ? normalizeStore(req.body.store) : (hh?.preferredStore || "albert_heijn");
+  const store = req.body.store ? normalizeStore(req.body.store) : "albert_heijn";
 
   const id = crypto.randomUUID();
   db.insert(weeklyPlan)

@@ -55,7 +55,7 @@ export default function MealPlanner() {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [store, setStore] = useState(household?.preferredStore || "Jumbo");
+  const [store, setStore] = useState("Jumbo");
 
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
@@ -79,11 +79,7 @@ export default function MealPlanner() {
     fetchPlan();
   }, [fetchPlan]);
 
-  useEffect(() => {
-    if (household?.preferredStore && !plan) {
-      setStore(household.preferredStore);
-    }
-  }, [household, plan]);
+  // Store preference is set when the plan is fetched or when the user selects one
 
   const createPlan = async () => {
     setCreating(true);

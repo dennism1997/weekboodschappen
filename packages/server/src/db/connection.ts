@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import Database, { type Database as DatabaseType } from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema.js";
 import { dirname } from "node:path";
@@ -9,7 +9,7 @@ const dbPath = process.env.DATABASE_PATH || "./data/weekboodschappen.db";
 // Ensure the directory exists
 mkdirSync(dirname(dbPath), { recursive: true });
 
-const sqlite = new Database(dbPath);
+const sqlite: DatabaseType = new Database(dbPath);
 
 // Enable WAL mode for better concurrent read performance
 sqlite.pragma("journal_mode = WAL");
