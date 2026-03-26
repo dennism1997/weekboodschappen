@@ -1,7 +1,9 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
-// Better Auth manages its own tables: user, session, account, verification,
-// organization, member, invitation. We only define app-specific tables here.
+// Re-export Better Auth tables so Drizzle migrations include them
+export * from "./auth-schema.js";
+
+// App-specific tables below.
 // householdId columns store the Better Auth organization ID as a plain string.
 
 export const recipe = sqliteTable("recipe", {

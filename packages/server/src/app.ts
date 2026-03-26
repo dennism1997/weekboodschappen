@@ -26,7 +26,7 @@ app.use((_req, res, next) => {
 });
 
 // Mount Better Auth handler first (needs raw body)
-app.all("/api/auth/*splat", toNodeHandler(auth));
+app.all("/api/auth/*", toNodeHandler(auth));
 
 // Then JSON parser for other routes
 app.use(express.json());

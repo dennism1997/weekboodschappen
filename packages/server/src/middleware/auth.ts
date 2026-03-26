@@ -26,8 +26,8 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
       return;
     }
 
-    // Get active organization (household)
-    const activeOrgId = session.session.activeOrganizationId;
+    // Get active organization (household) from session
+    const activeOrgId = (session.session as any).activeOrganizationId;
 
     req.user = {
       userId: session.user.id,

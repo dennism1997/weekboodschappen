@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth.js";
 import { authClient } from "../lib/auth-client.js";
 
-type Mode = "login" | "register" | "join";
+type Mode = "login" | "register" | "join" | "setup-passkey";
 
 export default function Login() {
   const [mode, setMode] = useState<Mode>("login");
@@ -17,37 +17,101 @@ export default function Login() {
   const { signIn, signUp, createOrganization, setActiveOrganization } = useAuth();
   const navigate = useNavigate();
 
+  const handlePasskeyLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await authClient.signIn.passkey();
+      if (result?.error) throw new Error(String(result.error.message || "Passkey login mislukt"));
+      navigate("/planner");
+    } catch (err: any) {
+      setError(err.message || "Passkey login mislukt");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegisterPasskey = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const result = await authClient.passkey.addPasskey({
+        name: "Weekboodschappen",
+      });
+      if (result?.error) throw new Error(String(result.error.message || "Passkey registreren mislukt"));
+      navigate("/planner");
+    } catch (err: any) {
+      setError(err.message || "Passkey registreren mislukt");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      if (mode === "login") {
-        const result = await signIn({ email, password });
-        if (result.error) throw new Error(result.error.message || "Inloggen mislukt");
-      } else if (mode === "register") {
-        // Sign up, then create an organization (household)
+      if (mode === "register") {
         const result = await signUp({ email, password, name });
         if (result.error) throw new Error(result.error.message || "Registreren mislukt");
-        const org = await createOrganization({ name: householdName, slug: crypto.randomUUID().slice(0, 8) });
+        const org = await createOrganization({
+          name: householdName,
+          slug: crypto.randomUUID().slice(0, 8),
+        });
         if (org.error) throw new Error(org.error.message || "Huishouden aanmaken mislukt");
         if (org.data) {
           await setActiveOrganization({ organizationId: org.data.id });
         }
-      } else {
-        // Join mode: sign up then accept invitation
+        // After signup, prompt to register passkey
+        setMode("setup-passkey");
+        setLoading(false);
+        return;
+      } else if (mode === "join") {
         const result = await signUp({ email, password, name });
         if (result.error) throw new Error(result.error.message || "Registreren mislukt");
         const accept = await authClient.organization.acceptInvitation({ invitationId });
         if (accept.error) throw new Error(accept.error.message || "Uitnodiging accepteren mislukt");
+        setMode("setup-passkey");
+        setLoading(false);
+        return;
       }
-      navigate("/planner");
     } catch (err: any) {
       setError(err.message || "Er ging iets mis");
     } finally {
       setLoading(false);
     }
   };
+
+  // Passkey setup screen after registration
+  if (mode === "setup-passkey") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-green-700">Passkey instellen</h1>
+            <p className="mt-2 text-sm text-gray-500">
+              Stel een passkey in zodat je voortaan snel en veilig kunt inloggen met Face ID, vingerafdruk of je apparaat.
+            </p>
+          </div>
+          {error && <p className="text-center text-sm text-red-600">{error}</p>}
+          <button
+            onClick={handleRegisterPasskey}
+            disabled={loading}
+            className="w-full rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          >
+            {loading ? "Bezig..." : "Passkey registreren"}
+          </button>
+          <button
+            onClick={() => navigate("/planner")}
+            className="w-full text-center text-xs text-gray-400 hover:text-gray-600"
+          >
+            Later instellen
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
@@ -56,12 +120,53 @@ export default function Login() {
           <h1 className="text-2xl font-bold text-green-700">Weekboodschappen</h1>
           <p className="mt-1 text-sm text-gray-500">
             {mode === "login" && "Inloggen"}
-            {mode === "register" && "Nieuw huishouden aanmaken"}
+            {mode === "register" && "Nieuw account aanmaken"}
             {mode === "join" && "Huishouden joinen"}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Passkey login — shown first on login mode */}
+        {mode === "login" && (
+          <div className="space-y-3">
+            <button
+              onClick={handlePasskeyLogin}
+              disabled={loading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {loading ? "Bezig..." : "Inloggen met passkey"}
+            </button>
+
+            {error && <p className="text-center text-sm text-red-600">{error}</p>}
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs">
+                <span className="bg-gray-50 px-2 text-gray-400">of</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Email+password form — for register/join, or as fallback for login */}
+        <form onSubmit={mode === "login"
+          ? async (e) => {
+              e.preventDefault();
+              setError("");
+              setLoading(true);
+              try {
+                const result = await signIn({ email, password });
+                if (result?.error) throw new Error(result.error.message || "Inloggen mislukt");
+                navigate("/planner");
+              } catch (err: any) {
+                setError(err.message || "Inloggen mislukt");
+              } finally {
+                setLoading(false);
+              }
+            }
+          : handleSubmit
+        } className="space-y-4">
           {mode === "register" && (
             <input
               type="text"
@@ -113,17 +218,21 @@ export default function Login() {
             className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
           />
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && mode !== "login" && <p className="text-sm text-red-600">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            className={`w-full rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 ${
+              mode === "login"
+                ? "border border-gray-300 text-gray-700 hover:bg-gray-50"
+                : "bg-green-600 text-white hover:bg-green-700"
+            }`}
           >
             {loading
               ? "Even wachten..."
               : mode === "login"
-                ? "Inloggen"
+                ? "Inloggen met wachtwoord"
                 : mode === "register"
                   ? "Registreren"
                   : "Joinen"}
@@ -132,18 +241,18 @@ export default function Login() {
 
         <div className="flex justify-center gap-4 text-xs text-gray-500">
           {mode !== "login" && (
-            <button onClick={() => setMode("login")} className="underline">
+            <button onClick={() => { setMode("login"); setError(""); }} className="underline">
               Inloggen
             </button>
           )}
           {mode !== "register" && (
-            <button onClick={() => setMode("register")} className="underline">
-              Nieuw huishouden
+            <button onClick={() => { setMode("register"); setError(""); }} className="underline">
+              Nieuw account
             </button>
           )}
           {mode !== "join" && (
-            <button onClick={() => setMode("join")} className="underline">
-              Joinen met code
+            <button onClick={() => { setMode("join"); setError(""); }} className="underline">
+              Joinen met uitnodiging
             </button>
           )}
         </div>
