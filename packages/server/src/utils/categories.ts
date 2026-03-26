@@ -57,7 +57,6 @@ const INGREDIENT_CATEGORY_MAP: Record<string, string> = {
   spruiten: "Groente & Fruit",
   boerenkool: "Groente & Fruit",
   savooiekool: "Groente & Fruit",
-  pak choi: "Groente & Fruit",
   "pak choi": "Groente & Fruit",
   paksoi: "Groente & Fruit",
   taugé: "Groente & Fruit",
@@ -107,7 +106,7 @@ const INGREDIENT_CATEGORY_MAP: Record<string, string> = {
   frambozen: "Groente & Fruit",
   bosbes: "Groente & Fruit",
   bosbessen: "Groente & Fruit",
-  blauwe bessen: "Groente & Fruit",
+  "blauwe bessen": "Groente & Fruit",
   kers: "Groente & Fruit",
   kersen: "Groente & Fruit",
   pruim: "Groente & Fruit",
@@ -399,7 +398,7 @@ const INGREDIENT_CATEGORY_MAP: Record<string, string> = {
   stroopwafels: "Snoep & Koek",
   cake: "Snoep & Koek",
   taart: "Snoep & Koek",
-  gevulde koeken: "Snoep & Koek",
+  "gevulde koeken": "Snoep & Koek",
 
   // Chips & Noten
   chips: "Chips & Noten",
