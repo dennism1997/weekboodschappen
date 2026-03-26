@@ -1,5 +1,35 @@
 import { scrapeRecipe as scrapeRecipeFromHtml } from "recipe-scrapers";
+import { chromium } from "playwright";
 import { parseIngredient } from "./ingredients.js";
+
+const BROWSER_HEADERS = {
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "Accept-Language": "nl-NL,nl;q=0.9,en-US;q=0.8,en;q=0.7",
+  "Cache-Control": "no-cache",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "none",
+  "Sec-Fetch-User": "?1",
+  "Upgrade-Insecure-Requests": "1",
+};
+
+async function fetchWithBrowser(url: string): Promise<string> {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const context = await browser.newContext({
+      userAgent: BROWSER_HEADERS["User-Agent"],
+      locale: "nl-NL",
+    });
+    const page = await context.newPage();
+    await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+    return await page.content();
+  } finally {
+    await browser.close();
+  }
+}
 
 interface ScrapedRecipe {
   title: string;
@@ -21,17 +51,16 @@ interface ScrapedRecipe {
 }
 
 export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
-  // Fetch the HTML
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (compatible; Weekboodschappen/1.0)",
-    },
-  });
-  if (!response.ok) {
+  // Fetch the HTML — try fast fetch first, fall back to headless browser on 403
+  let html: string;
+  const response = await fetch(url, { headers: BROWSER_HEADERS });
+  if (response.status === 403) {
+    html = await fetchWithBrowser(url);
+  } else if (!response.ok) {
     throw new Error(`Failed to fetch recipe page: ${response.status}`);
+  } else {
+    html = await response.text();
   }
-  const html = await response.text();
 
   // Parse recipe from HTML
   const data = await scrapeRecipeFromHtml(html, url);
