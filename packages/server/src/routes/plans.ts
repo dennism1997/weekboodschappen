@@ -112,6 +112,64 @@ router.get("/current", (req, res) => {
   res.json(getPlanWithRecipes(plan.id));
 });
 
+// GET /current/recommendations — Get recipe recommendations for the current plan
+router.get("/current/recommendations", (req, res) => {
+  const householdId = req.user!.householdId;
+  const weekStart = getCurrentWeekStart();
+
+  const plan = db
+    .select()
+    .from(weeklyPlan)
+    .where(
+      and(eq(weeklyPlan.householdId, householdId), eq(weeklyPlan.weekStart, weekStart)),
+    )
+    .get();
+
+  // Get recipe IDs already in the plan
+  const excludeIds: string[] = [];
+  if (plan) {
+    const planRecipes = db
+      .select({ recipeId: weeklyPlanRecipe.recipeId })
+      .from(weeklyPlanRecipe)
+      .where(eq(weeklyPlanRecipe.weeklyPlanId, plan.id))
+      .all();
+    excludeIds.push(...planRecipes.map((pr) => pr.recipeId));
+  }
+
+  // Get all household recipes, sorted by least recently cooked
+  let allRecipes = db
+    .select()
+    .from(recipe)
+    .where(eq(recipe.householdId, householdId))
+    .all();
+
+  // Exclude recipes already in the plan
+  if (excludeIds.length > 0) {
+    allRecipes = allRecipes.filter((r) => !excludeIds.includes(r.id));
+  }
+
+  // Sort: never cooked first, then by oldest lastCookedAt
+  allRecipes.sort((a, b) => {
+    if (!a.lastCookedAt && b.lastCookedAt) return -1;
+    if (a.lastCookedAt && !b.lastCookedAt) return 1;
+    if (!a.lastCookedAt && !b.lastCookedAt) return 0;
+    return a.lastCookedAt!.localeCompare(b.lastCookedAt!);
+  });
+
+  // Return top 6 recommendations
+  const recommendations = allRecipes.slice(0, 6).map((r) => ({
+    id: r.id,
+    title: r.title,
+    imageUrl: r.imageUrl,
+    servings: r.servings,
+    tags: r.tags,
+    timesCooked: r.timesCooked,
+    lastCookedAt: r.lastCookedAt,
+  }));
+
+  res.json(recommendations);
+});
+
 // PATCH /:id — Update plan fields (status, store)
 router.patch("/:id", (req, res) => {
   const householdId = req.user!.householdId;

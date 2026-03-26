@@ -3,12 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
-interface Recipe {
+interface Recommendation {
   id: string;
   title: string;
   imageUrl: string | null;
   servings: number;
   tags: string[];
+  timesCooked: number;
+  lastCookedAt: string | null;
 }
 
 interface PlanRecipe {
@@ -50,17 +52,27 @@ function getWeekLabel(): string {
 
 export default function MealPlanner() {
   const navigate = useNavigate();
-  const { household } = useAuth();
+  useAuth();
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [store, setStore] = useState("Jumbo");
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
 
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearch, setShowSearch] = useState(false);
+
+  const fetchRecommendations = useCallback(async () => {
+    try {
+      const data = await apiFetch<Recommendation[]>("/plans/current/recommendations");
+      setRecommendations(data);
+    } catch {
+      setRecommendations([]);
+    }
+  }, []);
 
   const fetchPlan = useCallback(async () => {
     setLoading(true);
@@ -76,8 +88,8 @@ export default function MealPlanner() {
   }, []);
 
   useEffect(() => {
-    fetchPlan();
-  }, [fetchPlan]);
+    fetchPlan().then(() => fetchRecommendations());
+  }, [fetchPlan, fetchRecommendations]);
 
   // Store preference is set when the plan is fetched or when the user selects one
 
@@ -137,9 +149,14 @@ export default function MealPlanner() {
       setSearchQuery("");
       setSearchResults([]);
       await fetchPlan();
+      await fetchRecommendations();
     } catch {
       // ignore
     }
+  };
+
+  const addRecommendationToPlan = async (rec: Recommendation) => {
+    await addRecipeToPlan({ id: rec.id, title: rec.title, servings: rec.servings });
   };
 
   const updateRecipeInPlan = async (
@@ -165,6 +182,7 @@ export default function MealPlanner() {
         method: "DELETE",
       });
       await fetchPlan();
+      await fetchRecommendations();
     } catch {
       // ignore
     }
@@ -231,19 +249,50 @@ export default function MealPlanner() {
       </div>
 
       {!plan ? (
-        <div className="py-12 text-center">
-          <p className="text-gray-500">Nog geen weekplan.</p>
-          <p className="mt-1 text-sm text-gray-400">
-            Maak een plan en voeg recepten toe.
-          </p>
-          <button
-            onClick={createPlan}
-            disabled={creating}
-            className="mt-4 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-          >
-            {creating ? "Bezig..." : "Nieuw weekplan"}
-          </button>
-        </div>
+        <>
+          <div className="py-12 text-center">
+            <p className="text-gray-500">Nog geen weekplan.</p>
+            <p className="mt-1 text-sm text-gray-400">
+              Maak een plan en voeg recepten toe.
+            </p>
+            <button
+              onClick={createPlan}
+              disabled={creating}
+              className="mt-4 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {creating ? "Bezig..." : "Nieuw weekplan"}
+            </button>
+          </div>
+
+          {recommendations.length > 0 && (
+            <div className="mt-6">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">Suggesties</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {recommendations.map((rec) => (
+                  <button
+                    key={rec.id}
+                    onClick={() => navigate(`/recipes/${rec.id}`)}
+                    className="flex flex-col rounded-lg border border-gray-200 bg-white p-2 text-left shadow-sm hover:border-green-400 transition"
+                  >
+                    {rec.imageUrl && (
+                      <img
+                        src={rec.imageUrl}
+                        alt={rec.title}
+                        className="mb-2 h-20 w-full rounded object-cover"
+                      />
+                    )}
+                    <span className="text-xs font-medium text-gray-900 line-clamp-2">
+                      {rec.title}
+                    </span>
+                    <span className="mt-1 text-[10px] text-gray-400">
+                      {rec.servings} pers.
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <>
           {/* Recipes in plan */}
@@ -369,6 +418,39 @@ export default function MealPlanner() {
                 ? "Lijst genereren..."
                 : "Boodschappenlijst maken"}
             </button>
+          )}
+
+          {/* Recommendations */}
+          {recommendations.length > 0 && (
+            <div className="mt-6">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">Suggesties</h2>
+              <div className="grid grid-cols-2 gap-2">
+                {recommendations.map((rec) => (
+                  <button
+                    key={rec.id}
+                    onClick={() => addRecommendationToPlan(rec)}
+                    className="flex flex-col rounded-lg border border-gray-200 bg-white p-2 text-left shadow-sm hover:border-green-400 transition"
+                  >
+                    {rec.imageUrl && (
+                      <img
+                        src={rec.imageUrl}
+                        alt={rec.title}
+                        className="mb-2 h-20 w-full rounded object-cover"
+                      />
+                    )}
+                    <span className="text-xs font-medium text-gray-900 line-clamp-2">
+                      {rec.title}
+                    </span>
+                    <span className="mt-1 text-[10px] text-gray-400">
+                      {rec.servings} pers.
+                      {rec.timesCooked > 0
+                        ? ` · ${rec.timesCooked}x gekookt`
+                        : " · Nog niet gekookt"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </>
       )}

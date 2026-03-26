@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client.js";
 
@@ -28,21 +28,70 @@ interface Recipe {
   timesCooked: number;
 }
 
+interface Plan {
+  id: string;
+  recipes: { recipeId: string }[];
+}
+
 export default function RecipeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [added, setAdded] = useState(false);
+
+  const fetchPlan = useCallback(async () => {
+    try {
+      const data = await apiFetch<Plan>("/plans/current");
+      setPlan(data);
+      if (id && data.recipes.some((r) => r.recipeId === id)) {
+        setAdded(true);
+      }
+    } catch {
+      setPlan(null);
+    }
+  }, [id]);
 
   useEffect(() => {
     apiFetch<Recipe>(`/recipes/${id}`)
       .then(setRecipe)
       .catch(() => navigate("/recipes"))
       .finally(() => setLoading(false));
-  }, [id, navigate]);
+    fetchPlan();
+  }, [id, navigate, fetchPlan]);
 
   if (loading) return <p className="text-center text-gray-400">Laden...</p>;
   if (!recipe) return null;
+
+  const handleAddToPlan = async () => {
+    if (!recipe) return;
+    setAdding(true);
+    try {
+      let planId = plan?.id;
+      if (!planId) {
+        const newPlan = await apiFetch<Plan>("/plans", {
+          method: "POST",
+          body: JSON.stringify({ store: "Jumbo" }),
+        });
+        planId = newPlan.id;
+        setPlan(newPlan);
+      }
+      await apiFetch(`/plans/${planId}/recipes`, {
+        method: "POST",
+        body: JSON.stringify({
+          recipeId: recipe.id,
+          servings: recipe.servings,
+        }),
+      });
+      setAdded(true);
+    } catch {
+      // ignore
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!confirm("Weet je zeker dat je dit recept wilt verwijderen?")) return;
@@ -110,9 +159,26 @@ export default function RecipeDetail() {
         ))}
       </ol>
 
+      {added ? (
+        <button
+          onClick={() => navigate("/planner")}
+          className="mt-8 w-full rounded-lg bg-green-50 px-4 py-2 text-sm font-medium text-green-700 border border-green-200"
+        >
+          ✓ Toegevoegd aan weekplan — Bekijk plan
+        </button>
+      ) : (
+        <button
+          onClick={handleAddToPlan}
+          disabled={adding}
+          className="mt-8 w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+        >
+          {adding ? "Toevoegen..." : "Toevoegen aan weekplan"}
+        </button>
+      )}
+
       <button
         onClick={handleDelete}
-        className="mt-8 w-full rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+        className="mt-3 w-full rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
       >
         Recept verwijderen
       </button>
