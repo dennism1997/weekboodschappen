@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "../api/client";
+import { authClient } from "../lib/auth-client";
 
 interface Member {
   id: string;
@@ -10,26 +11,30 @@ interface Member {
 const STORES = ["Jumbo", "Albert Heijn"];
 
 export default function Settings() {
-  const { user, household, logout } = useAuth();
+  const { user, household, signOut } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
-  const [store, setStore] = useState(household?.preferredStore || "Jumbo");
+  const [store, setStore] = useState("Jumbo");
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    if (household?.preferredStore) setStore(household.preferredStore);
-  }, [household]);
-
-  useEffect(() => {
     async function fetchMembers() {
+      if (!household) return;
       try {
-        const data = await apiFetch<Member[]>("/household/members");
-        setMembers(data);
+        const result = await authClient.organization.getFullOrganization();
+        if (result.data) {
+          setMembers(
+            result.data.members.map((m: any) => ({
+              id: m.user.id,
+              name: m.user.name || m.user.email,
+            })),
+          );
+        }
       } catch {
         // ignore
       }
     }
     fetchMembers();
-  }, []);
+  }, [household]);
 
   const updateStore = async (newStore: string) => {
     setStore(newStore);
@@ -43,12 +48,20 @@ export default function Settings() {
     }
   };
 
-  const copyInviteCode = () => {
-    if (household?.inviteCode) {
-      navigator.clipboard.writeText(household.inviteCode);
+  const copyInviteLink = async () => {
+    if (!household?.slug) return;
+    try {
+      await navigator.clipboard.writeText(household.slug);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
     }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    window.location.href = "/login";
   };
 
   return (
@@ -64,16 +77,16 @@ export default function Settings() {
           <div className="flex justify-between">
             <span className="text-gray-500">Naam</span>
             <span className="font-medium text-gray-900">
-              {household?.name || "—"}
+              {household?.name || "\u2014"}
             </span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-gray-500">Uitnodigingscode</span>
+            <span className="text-gray-500">Uitnodiging</span>
             <button
-              onClick={copyInviteCode}
+              onClick={copyInviteLink}
               className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-700 hover:bg-gray-200"
             >
-              {household?.inviteCode || "—"}
+              {household?.slug || "\u2014"}
               <span className="text-[10px] text-gray-400">
                 {copied ? "Gekopieerd!" : "Kopieer"}
               </span>
@@ -82,7 +95,7 @@ export default function Settings() {
           <div className="flex justify-between">
             <span className="text-gray-500">Ingelogd als</span>
             <span className="font-medium text-gray-900">
-              {user?.name || "—"}
+              {user?.name || user?.email || "\u2014"}
             </span>
           </div>
         </div>
@@ -144,7 +157,7 @@ export default function Settings() {
 
       {/* Logout */}
       <button
-        onClick={logout}
+        onClick={handleLogout}
         className="w-full rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
       >
         Uitloggen

@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { fromNodeHeaders } from "better-auth/node";
+import { auth } from "../auth.js";
 
 export interface AuthPayload {
   userId: string;
@@ -14,25 +15,27 @@ declare global {
   }
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-secret";
-
-export function createToken(payload: AuthPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
-}
-
-export function requireAuth(req: Request, res: Response, next: NextFunction) {
-  const header = req.headers.authorization;
-  if (!header?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Authentication required" });
-    return;
-  }
-
+export async function requireAuth(req: Request, res: Response, next: NextFunction) {
   try {
-    const token = header.slice(7);
-    const decoded = jwt.verify(token, JWT_SECRET) as AuthPayload;
-    req.user = decoded;
+    const session = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+
+    if (!session?.session) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+
+    // Get active organization (household)
+    const activeOrgId = session.session.activeOrganizationId;
+
+    req.user = {
+      userId: session.user.id,
+      householdId: activeOrgId || "",
+    };
+
     next();
   } catch {
-    res.status(401).json({ error: "Invalid or expired token" });
+    res.status(401).json({ error: "Invalid or expired session" });
   }
 }

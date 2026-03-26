@@ -1,36 +1,12 @@
 import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
 
-export const household = sqliteTable("household", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  inviteCode: text("invite_code").notNull().unique(),
-  preferredStore: text("preferred_store", {
-    enum: ["jumbo", "albert_heijn"],
-  })
-    .notNull()
-    .default("albert_heijn"),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
-
-export const user = sqliteTable("user", {
-  id: text("id").primaryKey(),
-  householdId: text("household_id")
-    .notNull()
-    .references(() => household.id),
-  name: text("name").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  createdAt: text("created_at")
-    .notNull()
-    .$defaultFn(() => new Date().toISOString()),
-});
+// Better Auth manages its own tables: user, session, account, verification,
+// organization, member, invitation. We only define app-specific tables here.
+// householdId columns store the Better Auth organization ID as a plain string.
 
 export const recipe = sqliteTable("recipe", {
   id: text("id").primaryKey(),
-  householdId: text("household_id")
-    .notNull()
-    .references(() => household.id),
+  householdId: text("household_id").notNull(),
   title: text("title").notNull(),
   sourceUrl: text("source_url"),
   imageUrl: text("image_url"),
@@ -64,9 +40,7 @@ export const recipe = sqliteTable("recipe", {
 
 export const weeklyPlan = sqliteTable("weekly_plan", {
   id: text("id").primaryKey(),
-  householdId: text("household_id")
-    .notNull()
-    .references(() => household.id),
+  householdId: text("household_id").notNull(),
   weekStart: text("week_start").notNull(),
   status: text("status", {
     enum: ["planning", "shopping", "completed"],
@@ -128,15 +102,13 @@ export const groceryItem = sqliteTable("grocery_item", {
     originalPrice: number;
     salePrice: number;
   } | null>(),
-  checkedBy: text("checked_by").references(() => user.id),
+  checkedBy: text("checked_by"),
   checkedAt: text("checked_at"),
 });
 
 export const weeklyStaple = sqliteTable("weekly_staple", {
   id: text("id").primaryKey(),
-  householdId: text("household_id")
-    .notNull()
-    .references(() => household.id),
+  householdId: text("household_id").notNull(),
   name: text("name").notNull(),
   defaultQuantity: real("default_quantity").notNull(),
   unit: text("unit").notNull(),
@@ -149,9 +121,7 @@ export const weeklyStaple = sqliteTable("weekly_staple", {
 
 export const storeConfig = sqliteTable("store_config", {
   id: text("id").primaryKey(),
-  householdId: text("household_id")
-    .notNull()
-    .references(() => household.id),
+  householdId: text("household_id").notNull(),
   store: text("store", {
     enum: ["jumbo", "albert_heijn"],
   }).notNull(),
@@ -180,9 +150,7 @@ export const productDiscount = sqliteTable("product_discount", {
 
 export const shoppingHistory = sqliteTable("shopping_history", {
   id: text("id").primaryKey(),
-  householdId: text("household_id")
-    .notNull()
-    .references(() => household.id),
+  householdId: text("household_id").notNull(),
   groceryItemId: text("grocery_item_id")
     .notNull()
     .references(() => groceryItem.id),
