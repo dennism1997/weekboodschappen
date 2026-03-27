@@ -9,6 +9,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { generateGroceryList } from "../services/lists.js";
+import { validate, addRecipeToPlanSchema } from "../validation/schemas.js";
 import { getRecommendations } from "../services/recommendations.js";
 
 const router = Router();
@@ -200,7 +201,7 @@ router.patch("/:id", (req, res) => {
 });
 
 // POST /:id/recipes — Add a recipe to the plan
-router.post("/:id/recipes", (req, res) => {
+router.post("/:id/recipes", validate(addRecipeToPlanSchema), (req: any, res: any) => {
   const householdId = req.user!.householdId;
   const plan = db
     .select()
