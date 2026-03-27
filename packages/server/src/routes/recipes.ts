@@ -6,16 +6,13 @@ import { requireAuth } from "../middleware/auth.js";
 import { scrapeRecipe } from "../services/scraper.js";
 import { categorizeBatchWithAI } from "../services/ai.js";
 import { categorizeIngredientSync } from "../utils/categories.js";
+import { validate, scrapeRecipeSchema } from "../validation/schemas.js";
 
 const router = Router();
 router.use(requireAuth);
 
-router.post("/scrape", async (req, res) => {
+router.post("/scrape", validate(scrapeRecipeSchema), async (req, res) => {
   const { url } = req.body;
-  if (!url) {
-    res.status(400).json({ error: "url is required" });
-    return;
-  }
 
   try {
     const scraped = await scrapeRecipe(url);

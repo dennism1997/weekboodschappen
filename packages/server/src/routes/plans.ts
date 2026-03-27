@@ -9,6 +9,7 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { generateGroceryList } from "../services/lists.js";
+import { validate, addRecipeToPlanSchema } from "../validation/schemas.js";
 
 const router = Router();
 router.use(requireAuth);

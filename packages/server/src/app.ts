@@ -1,5 +1,8 @@
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import compression from "compression";
+import rateLimit from "express-rate-limit";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
@@ -20,13 +23,23 @@ const app = express();
 
 app.set("etag", false);
 app.use(cors({ origin: true, credentials: true }));
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(compression());
 app.use((_req, res, next) => {
   res.set("Cache-Control", "no-store");
   next();
 });
 
+// Auth rate limiter
+const authLimiter = rateLimit({
+  windowMs: 60_000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
 // Mount Better Auth handler first (needs raw body)
-app.all("/api/auth/*", toNodeHandler(auth));
+app.all("/api/auth/*", authLimiter, toNodeHandler(auth));
 
 // Then JSON parser for other routes
 app.use(express.json());
@@ -47,6 +60,19 @@ app.get("/api/health", (_req, res) => {
     res.status(500).json({ status: "error", error: "Database unavailable" });
   }
 });
+
+// Global error handler
+app.use(
+  (
+    err: Error,
+    _req: express.Request,
+    res: express.Response,
+    _next: express.NextFunction,
+  ) => {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  },
+);
 
 // Serve client static files in production
 const clientDist = join(__dirname, "../../client/dist");

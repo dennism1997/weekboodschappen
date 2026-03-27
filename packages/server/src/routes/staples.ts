@@ -3,6 +3,7 @@ import { db } from "../db/connection.js";
 import { weeklyStaple, shoppingHistory } from "../db/schema.js";
 import { eq, and, sql } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
+import { validate, createStapleSchema } from "../validation/schemas.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -21,7 +22,7 @@ router.get("/", (req, res) => {
 });
 
 // POST / — Add a staple
-router.post("/", (req, res) => {
+router.post("/", validate(createStapleSchema), (req, res) => {
   const householdId = req.user!.householdId;
   const { name, defaultQuantity, quantity, unit, category } = req.body;
   const qty = defaultQuantity ?? quantity;
