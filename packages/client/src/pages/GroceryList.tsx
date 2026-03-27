@@ -39,8 +39,7 @@ const STORES = ["Jumbo", "Albert Heijn"];
 export default function GroceryList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [showAdd, setShowAdd] = useState(false);
-  const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "stuk" });
+  const [quickAdd, setQuickAdd] = useState("");
   const [store, setStore] = useState("Jumbo");
   const [cleaning, setCleaning] = useState(false);
   const [cleanupSummary, setCleanupSummary] = useState("");
@@ -106,19 +105,18 @@ export default function GroceryList() {
   };
 
   const addItem = async () => {
-    if (!list || !newItem.name.trim()) return;
+    if (!list || !quickAdd.trim()) return;
     try {
       await apiFetch(`/lists/${list.id}/items`, {
         method: "POST",
         body: JSON.stringify({
-          name: newItem.name.trim(),
-          quantity: parseFloat(newItem.quantity) || 1,
-          unit: newItem.unit,
+          name: quickAdd.trim(),
+          quantity: 1,
+          unit: "stuk",
           source: "handmatig",
         }),
       });
-      setNewItem({ name: "", quantity: "1", unit: "stuk" });
-      setShowAdd(false);
+      setQuickAdd("");
       await invalidate();
     } catch {
       // ignore
@@ -190,12 +188,6 @@ export default function GroceryList() {
           >
             {cleaning ? "Opschonen..." : "✨ Opschonen"}
           </button>
-          <button
-            onClick={() => setShowAdd(!showAdd)}
-            className="rounded-[10px] bg-accent px-3.5 py-2 text-[13px] font-semibold text-white"
-          >
-            + Item
-          </button>
         </div>
       </div>
 
@@ -225,48 +217,6 @@ export default function GroceryList() {
           </button>
         ))}
       </div>
-
-      {/* Add item form */}
-      {showAdd && (
-        <div className="mb-4 overflow-hidden rounded-[12px] bg-white p-4">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Product naam"
-              value={newItem.name}
-              onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
-              autoFocus
-              className="flex-1 rounded-[8px] border border-ios-separator px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
-            />
-            <input
-              type="number"
-              value={newItem.quantity}
-              onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
-              className="w-16 rounded-[8px] border border-ios-separator px-2 py-2 text-center text-[15px] text-ios-label focus:border-accent focus:outline-none"
-            />
-            <input
-              type="text"
-              value={newItem.unit}
-              onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-              className="w-16 rounded-[8px] border border-ios-separator px-2 py-2 text-center text-[15px] text-ios-label focus:border-accent focus:outline-none"
-            />
-          </div>
-          <div className="mt-3 flex justify-end gap-2">
-            <button
-              onClick={() => setShowAdd(false)}
-              className="text-[13px] text-ios-secondary"
-            >
-              Annuleren
-            </button>
-            <button
-              onClick={addItem}
-              className="rounded-[8px] bg-accent px-4 py-1.5 text-[13px] font-semibold text-white"
-            >
-              Toevoegen
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Items by category */}
       {categories.map((cat) => (
@@ -298,6 +248,26 @@ export default function GroceryList() {
           </div>
         </div>
       )}
+
+      {/* Quick add input */}
+      <div className="mt-4 flex gap-2">
+        <input
+          type="text"
+          placeholder="Item toevoegen..."
+          value={quickAdd}
+          onChange={(e) => setQuickAdd(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addItem(); }}
+          className="min-w-0 flex-1 rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
+        />
+        {quickAdd.trim() && (
+          <button
+            onClick={addItem}
+            className="shrink-0 rounded-[12px] bg-accent px-4 py-3 text-[15px] font-semibold text-white"
+          >
+            +
+          </button>
+        )}
+      </div>
 
       {/* Start shopping */}
       <button
