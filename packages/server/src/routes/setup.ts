@@ -5,6 +5,7 @@ import { user, organization, member, recoveryToken } from "../db/auth-schema.js"
 import { count } from "drizzle-orm";
 import { auth } from "../auth.js";
 import { refreshCachedSuggestions } from "../services/recommendations.js";
+import { favoriteWebsite } from "../db/schema.js";
 
 const router = Router();
 
@@ -86,6 +87,17 @@ router.post("/", async (req, res) => {
   const setCookies = authResponse.headers.getSetCookie();
   for (const cookie of setCookies) {
     res.append("Set-Cookie", cookie);
+  }
+
+  // Seed default favorite websites
+  const defaultWebsites = [
+    { url: "https://www.leukerecepten.nl/", name: "leuke recepten" },
+    { url: "https://www.ah.nl/allerhande", name: "allerhande" },
+  ];
+  for (const w of defaultWebsites) {
+    db.insert(favoriteWebsite)
+      .values({ id: crypto.randomUUID(), householdId: orgId, url: w.url, name: w.name })
+      .run();
   }
 
   // Generate initial suggestions for the new household (async, don't block response)
