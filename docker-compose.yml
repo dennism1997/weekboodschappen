@@ -1,5 +1,6 @@
 services:
-  app:
+  weekboodschappen:
+    container_name: weekboodschappen
     build: .
     restart: unless-stopped
     ports:
@@ -8,13 +9,15 @@ services:
       - app-data:/data
     environment:
       - DATABASE_PATH=/data/weekboodschappen.db
-      - JWT_SECRET=${JWT_SECRET}
+      - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - PORT=3001
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001/api/health"]
-      interval: 30s
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 5
 
 volumes:
   app-data:
