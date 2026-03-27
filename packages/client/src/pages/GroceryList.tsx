@@ -42,6 +42,8 @@ export default function GroceryList() {
   const [showAdd, setShowAdd] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "stuk" });
   const [store, setStore] = useState("Jumbo");
+  const [cleaning, setCleaning] = useState(false);
+  const [cleanupSummary, setCleanupSummary] = useState("");
 
   const { data: list = null, isLoading: loading } = useQuery({
     queryKey: ["grocery-list"],
@@ -55,6 +57,23 @@ export default function GroceryList() {
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["grocery-list"] });
+
+  const cleanupList = async () => {
+    if (!list) return;
+    setCleaning(true);
+    setCleanupSummary("");
+    try {
+      const result = await apiFetch<{ summary: string }>(`/lists/${list.id}/cleanup`, {
+        method: "POST",
+      });
+      setCleanupSummary(result.summary);
+      await invalidate();
+    } catch {
+      setCleanupSummary("Opschonen mislukt. Probeer het opnieuw.");
+    } finally {
+      setCleaning(false);
+    }
+  };
 
   const toggleItem = async (itemId: string) => {
     if (!list) return;
@@ -151,13 +170,32 @@ export default function GroceryList() {
             />
           </div>
         </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="rounded-[10px] bg-accent px-3.5 py-2 text-[13px] font-semibold text-white"
-        >
-          + Item
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={cleanupList}
+            disabled={cleaning}
+            className="rounded-[10px] bg-ios-grouped-bg px-3.5 py-2 text-[13px] font-semibold text-ios-label disabled:opacity-50"
+          >
+            {cleaning ? "Opschonen..." : "✨ Opschonen"}
+          </button>
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="rounded-[10px] bg-accent px-3.5 py-2 text-[13px] font-semibold text-white"
+          >
+            + Item
+          </button>
+        </div>
       </div>
+
+      {/* Cleanup summary */}
+      {cleanupSummary && (
+        <div className="mb-4 rounded-[12px] bg-accent-light p-3">
+          <p className="text-[13px] text-ios-label">{cleanupSummary}</p>
+          <button onClick={() => setCleanupSummary("")} className="mt-1 text-[12px] text-accent">
+            Sluiten
+          </button>
+        </div>
+      )}
 
       {/* Store selector */}
       <div className="mb-4 flex rounded-[9px] bg-ios-segmented-bg p-0.5">

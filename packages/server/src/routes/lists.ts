@@ -1,4 +1,5 @@
 import { Router } from "express";
+import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db/connection.js";
 import {
   groceryList,
@@ -8,6 +9,8 @@ import {
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { recordShoppingTrip } from "../services/learning.js";
+
+const ai = new Anthropic();
 
 const router = Router();
 router.use(requireAuth);
@@ -258,6 +261,113 @@ router.post("/:id/finalize", (req, res) => {
 
   const itemsRecorded = recordShoppingTrip(listId, householdId);
   res.json({ ok: true, itemsRecorded });
+});
+
+// POST /:id/cleanup — AI-powered list cleanup
+router.post("/:id/cleanup", async (req, res) => {
+  const householdId = req.user!.householdId;
+  const listId = req.params.id;
+
+  const list = db.select().from(groceryList).where(eq(groceryList.id, listId)).get();
+  if (!list) { res.status(404).json({ error: "List not found" }); return; }
+
+  const plan = db.select().from(weeklyPlan)
+    .where(and(eq(weeklyPlan.id, list.weeklyPlanId), eq(weeklyPlan.householdId, householdId)))
+    .get();
+  if (!plan) { res.status(404).json({ error: "List not found" }); return; }
+
+  const items = db.select().from(groceryItem)
+    .where(eq(groceryItem.groceryListId, listId))
+    .all();
+
+  const itemList = items.map((i) => ({
+    id: i.id,
+    name: i.name,
+    quantity: i.quantity,
+    unit: i.unit,
+    category: i.category,
+    source: i.source,
+  }));
+
+  const prompt = `Je bent een slimme boodschappenlijst-assistent. Schoon de volgende boodschappenlijst op.
+
+Regels:
+1. SAMENVOEGEN: Als hetzelfde product meerdere keren voorkomt, voeg ze samen (tel hoeveelheden op). Geef de IDs van items die verwijderd moeten worden (duplicaten).
+2. BASISINGREDIËNTEN VERWIJDEREN: Verwijder basisingrediënten zoals zout, peper, olie, boter, suiker, water, bloem — MAAR ALLEEN als hun source "recipe" of "staple" is. Items met source "manual" zijn handmatig toegevoegd en moeten ALTIJD blijven.
+3. HOEVEELHEDEN: Corrigeer onlogische hoeveelheden als dat nodig is.
+
+Huidige lijst:
+${JSON.stringify(itemList, null, 2)}
+
+Antwoord ALLEEN met geldige JSON:
+{
+  "deleteIds": ["id1", "id2"],
+  "updates": [
+    { "id": "item-id", "quantity": 3, "unit": "stuk", "name": "nieuwe naam" }
+  ],
+  "summary": "Korte samenvatting van wat er is veranderd"
+}`;
+
+  try {
+    const response = await ai.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      res.status(500).json({ error: "AI returned invalid response" });
+      return;
+    }
+
+    const result = JSON.parse(jsonMatch[0]) as {
+      deleteIds: string[];
+      updates: Array<{ id: string; quantity?: number; unit?: string; name?: string }>;
+      summary: string;
+    };
+
+    // Apply deletions
+    for (const deleteId of result.deleteIds) {
+      db.delete(groceryItem).where(
+        and(eq(groceryItem.id, deleteId), eq(groceryItem.groceryListId, listId))
+      ).run();
+    }
+
+    // Apply updates
+    for (const update of result.updates) {
+      const sets: Record<string, any> = {};
+      if (update.quantity !== undefined) sets.quantity = update.quantity;
+      if (update.unit !== undefined) sets.unit = update.unit;
+      if (update.name !== undefined) sets.name = update.name;
+
+      if (Object.keys(sets).length > 0) {
+        db.update(groceryItem).set(sets)
+          .where(and(eq(groceryItem.id, update.id), eq(groceryItem.groceryListId, listId)))
+          .run();
+      }
+    }
+
+    // Return updated list
+    const updatedItems = db.select().from(groceryItem)
+      .where(eq(groceryItem.groceryListId, listId))
+      .all()
+      .map((item) => ({
+        ...item,
+        checked: item.status === "checked",
+        source: item.source === "staple" ? "basis" : item.source === "manual" ? "handmatig" : "recept",
+      }));
+
+    res.json({
+      summary: result.summary,
+      deleted: result.deleteIds.length,
+      updated: result.updates.length,
+      items: updatedItems,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: `Cleanup failed: ${err.message}` });
+  }
 });
 
 export default router;
