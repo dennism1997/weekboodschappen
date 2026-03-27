@@ -180,11 +180,16 @@ export default function MealPlanner() {
 
   const deletePlan = async () => {
     if (!currentPlan) return;
+    const deletedId = currentPlan.id;
     try {
-      await apiFetch(`/plans/${currentPlan.id}`, { method: "DELETE" });
-      setSelectedPlanId(null);
+      await apiFetch(`/plans/${deletedId}`, { method: "DELETE" });
       setConfirmDelete(false);
-      await invalidatePlans();
+      // Invalidate and wait for fresh data before selecting next plan
+      await queryClient.invalidateQueries({ queryKey: ["all-plans"] });
+      await queryClient.invalidateQueries({ queryKey: ["meal-plan", deletedId] });
+      // Select the next available plan (exclude the deleted one)
+      const remaining = allPlans.filter((p) => p.id !== deletedId);
+      setSelectedPlanId(remaining.length > 0 ? remaining[0].id : null);
     } catch {
       // ignore
     }
