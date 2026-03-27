@@ -263,6 +263,25 @@ router.post("/:id/finalize", (req, res) => {
   res.json({ ok: true, itemsRecorded });
 });
 
+// DELETE /:id — Delete the entire grocery list
+router.delete("/:id", (req, res) => {
+  const householdId = req.user!.householdId;
+  const listId = req.params.id;
+
+  const list = db.select().from(groceryList).where(eq(groceryList.id, listId)).get();
+  if (!list) { res.status(404).json({ error: "List not found" }); return; }
+
+  const plan = db.select().from(weeklyPlan)
+    .where(and(eq(weeklyPlan.id, list.weeklyPlanId), eq(weeklyPlan.householdId, householdId)))
+    .get();
+  if (!plan) { res.status(404).json({ error: "List not found" }); return; }
+
+  db.delete(groceryItem).where(eq(groceryItem.groceryListId, listId)).run();
+  db.delete(groceryList).where(eq(groceryList.id, listId)).run();
+
+  res.json({ ok: true });
+});
+
 // POST /:id/cleanup — AI-powered list cleanup
 router.post("/:id/cleanup", async (req, res) => {
   const householdId = req.user!.householdId;

@@ -44,6 +44,7 @@ export default function GroceryList() {
   const [store, setStore] = useState("Jumbo");
   const [cleaning, setCleaning] = useState(false);
   const [cleanupSummary, setCleanupSummary] = useState("");
+  const [confirmDeleteList, setConfirmDeleteList] = useState(false);
 
   const { data: list = null, isLoading: loading } = useQuery({
     queryKey: ["grocery-list"],
@@ -57,6 +58,17 @@ export default function GroceryList() {
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["grocery-list"] });
+
+  const deleteList = async () => {
+    if (!list) return;
+    try {
+      await apiFetch(`/lists/${list.id}`, { method: "DELETE" });
+      setConfirmDeleteList(false);
+      await invalidate();
+    } catch {
+      // ignore
+    }
+  };
 
   const cleanupList = async () => {
     if (!list) return;
@@ -294,6 +306,34 @@ export default function GroceryList() {
       >
         Winkelen starten
       </button>
+
+      {/* Delete list */}
+      {confirmDeleteList ? (
+        <div className="mt-4 rounded-[12px] border border-ios-destructive/30 bg-ios-destructive/5 p-4">
+          <p className="text-[15px] text-ios-label">Weet je zeker dat je de hele lijst wilt verwijderen?</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={deleteList}
+              className="rounded-[8px] bg-ios-destructive px-4 py-2 text-[13px] font-semibold text-white"
+            >
+              Verwijderen
+            </button>
+            <button
+              onClick={() => setConfirmDeleteList(false)}
+              className="rounded-[8px] bg-ios-grouped-bg px-4 py-2 text-[13px] font-semibold text-ios-label"
+            >
+              Annuleren
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirmDeleteList(true)}
+          className="mt-3 w-full rounded-[14px] border border-ios-destructive py-3 text-[15px] font-medium text-ios-destructive"
+        >
+          Lijst verwijderen
+        </button>
+      )}
     </div>
   );
 }
