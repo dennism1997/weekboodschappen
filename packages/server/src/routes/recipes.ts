@@ -61,6 +61,59 @@ router.post("/scrape", validate(scrapeRecipeSchema), async (req, res) => {
   }
 });
 
+router.post("/from-suggestion", async (req, res) => {
+  const { title, description, ingredients } = req.body;
+
+  if (!title || !ingredients || !Array.isArray(ingredients)) {
+    res.status(400).json({ error: "title and ingredients array are required" });
+    return;
+  }
+
+  // Categorize each ingredient name
+  const unknowns: string[] = [];
+  const categorized: { name: string; quantity: number; unit: string; category: string }[] = [];
+
+  for (const name of ingredients) {
+    const category = categorizeIngredientSync(name);
+    if (category) {
+      categorized.push({ name, quantity: 1, unit: "stuk", category });
+    } else {
+      unknowns.push(name);
+      categorized.push({ name, quantity: 1, unit: "stuk", category: "Overig" });
+    }
+  }
+
+  // AI categorization for unknowns
+  if (unknowns.length > 0) {
+    try {
+      const aiCategories = await categorizeBatchWithAI(unknowns);
+      for (const ing of categorized) {
+        if (ing.category === "Overig" && aiCategories[ing.name]) {
+          ing.category = aiCategories[ing.name];
+        }
+      }
+    } catch {
+      // Keep "Overig" fallback
+    }
+  }
+
+  const id = crypto.randomUUID();
+  db.insert(recipe)
+    .values({
+      id,
+      householdId: req.user!.householdId,
+      title,
+      servings: 4,
+      ingredients: categorized,
+      instructions: [],
+      tags: description ? [description] : [],
+    })
+    .run();
+
+  const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
+  res.json(saved);
+});
+
 router.get("/", (req, res) => {
   const search = req.query.search as string | undefined;
   const householdId = req.user!.householdId;
