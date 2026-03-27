@@ -18,9 +18,9 @@ interface GroceryItemRowProps {
 }
 
 const sourceBadgeColors: Record<string, string> = {
-  recept: "bg-blue-100 text-blue-700",
-  basis: "bg-amber-100 text-amber-700",
-  handmatig: "bg-purple-100 text-purple-700",
+  recept: "bg-source-recept-bg text-source-recept-text",
+  basis: "bg-source-basis-bg text-source-basis-text",
+  handmatig: "bg-source-handmatig-bg text-source-handmatig-text",
 };
 
 export default function GroceryItemRow({
@@ -36,32 +36,32 @@ export default function GroceryItemRow({
   return (
     <button
       onClick={() => onToggle(id)}
-      className="flex w-full items-center gap-3 border-b border-gray-100 px-3 py-2.5 text-left transition active:bg-gray-50"
+      className="flex w-full min-h-[44px] items-center gap-3 border-b border-ios-separator/50 px-4 py-3 text-left transition active:bg-ios-category-bg"
     >
       <div
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 ${
+        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${
           checked
-            ? "border-green-600 bg-green-600 text-white"
-            : "border-gray-300"
+            ? "border-accent bg-accent text-white"
+            : "border-ios-tertiary"
         }`}
       >
         {checked && (
-          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <span className={`text-sm ${checked ? "text-gray-400 line-through" : "text-gray-900"}`}>
+        <span className={`text-[17px] ${checked ? "text-ios-tertiary line-through" : "text-ios-label"}`}>
           {name}
         </span>
       </div>
       <DiscountBadge discountInfo={discountInfo ?? null} />
-      <span className={`text-xs ${checked ? "text-gray-300 line-through" : "text-gray-500"}`}>
+      <span className={`text-[13px] ${checked ? "text-ios-tertiary line-through" : "text-ios-secondary"}`}>
         {quantity} {unit}
       </span>
       <span
-        className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${sourceBadgeColors[source] ?? "bg-gray-100 text-gray-600"}`}
+        className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${sourceBadgeColors[source] ?? "bg-ios-category-bg text-ios-secondary"}`}
       >
         {source}
       </span>
