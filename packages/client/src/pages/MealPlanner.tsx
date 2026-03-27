@@ -692,9 +692,10 @@ export default function MealPlanner() {
                           {!alreadyInPlan && (
                             <button
                               onClick={() => addSuggestionToPlan(rec, i)}
-                              className="rounded-[8px] bg-accent px-3 py-1.5 text-[13px] font-semibold text-white"
+                              className="rounded-[8px] bg-accent p-1.5 text-white"
+                              title="Toevoegen aan weekplan"
                             >
-                              + Plan
+                              <Plus className="h-4 w-4" />
                             </button>
                           )}
                         </div>
