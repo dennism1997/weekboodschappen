@@ -75,21 +75,21 @@ function SortableItem({ id }: { id: string }) {
     <li
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${
+      className={`flex min-h-[44px] items-center gap-3 rounded-[10px] border px-4 py-3 text-[15px] ${
         isDragging
-          ? "z-10 border-green-300 bg-green-50 shadow-md"
-          : "border-gray-200 bg-white"
+          ? "z-10 border-accent bg-accent-light shadow-md"
+          : "border-ios-separator bg-white"
       }`}
     >
       <span
         {...attributes}
         {...listeners}
-        className="cursor-grab touch-none text-gray-400 select-none"
+        className="cursor-grab touch-none text-ios-tertiary select-none"
         aria-label="Versleep"
       >
         ≡
       </span>
-      <span className="text-gray-700">{id}</span>
+      <span className="text-ios-label">{id}</span>
     </li>
   );
 }
@@ -214,55 +214,49 @@ export default function Settings() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-bold text-gray-900">Instellingen</h1>
+      <h1 className="mb-4 text-[34px] font-bold text-ios-label">Instellingen</h1>
 
       {/* Household info */}
-      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">
-          Huishouden
-        </h2>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Naam</span>
-            <span className="font-medium text-gray-900">
-              {household?.name || "\u2014"}
+      <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Huishouden</p>
+      <section className="mb-6 overflow-hidden rounded-[12px] bg-white">
+        <div className="flex min-h-[44px] items-center justify-between px-4 py-3">
+          <span className="text-[17px] text-ios-label">Naam</span>
+          <span className="text-[17px] text-ios-secondary">
+            {household?.name || "\u2014"}
+          </span>
+        </div>
+        <div className="ml-4 flex min-h-[44px] items-center justify-between border-t border-ios-separator py-3 pr-4">
+          <span className="text-[17px] text-ios-label">Uitnodiging</span>
+          <button
+            onClick={copyInviteLink}
+            className="flex items-center gap-1 rounded-[8px] bg-ios-category-bg px-3 py-1 font-mono text-[13px] text-ios-label"
+          >
+            {household?.slug || "\u2014"}
+            <span className="text-[11px] text-ios-secondary">
+              {copied ? "Gekopieerd!" : "Kopieer"}
             </span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-gray-500">Uitnodiging</span>
-            <button
-              onClick={copyInviteLink}
-              className="flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 font-mono text-xs text-gray-700 hover:bg-gray-200"
-            >
-              {household?.slug || "\u2014"}
-              <span className="text-[10px] text-gray-400">
-                {copied ? "Gekopieerd!" : "Kopieer"}
-              </span>
-            </button>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Ingelogd als</span>
-            <span className="font-medium text-gray-900">
-              {user?.name || user?.email || "\u2014"}
-            </span>
-          </div>
+          </button>
+        </div>
+        <div className="ml-4 flex min-h-[44px] items-center justify-between border-t border-ios-separator py-3 pr-4">
+          <span className="text-[17px] text-ios-label">Ingelogd als</span>
+          <span className="text-[17px] text-ios-secondary">
+            {user?.name || user?.email || "\u2014"}
+          </span>
         </div>
       </section>
 
       {/* Preferred store */}
-      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">
-          Voorkeurswinkel
-        </h2>
-        <div className="flex gap-2">
+      <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Voorkeurswinkel</p>
+      <section className="mb-6 overflow-hidden rounded-[12px] bg-white p-4">
+        <div className="flex rounded-[9px] bg-ios-segmented-bg p-0.5">
           {STORES.map((s) => (
             <button
               key={s}
               onClick={() => updateStore(s)}
-              className={`flex-1 rounded-lg py-2 text-sm font-medium transition ${
+              className={`flex-1 rounded-[7px] py-[7px] text-[13px] font-semibold transition ${
                 store === s
-                  ? "bg-green-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-white text-ios-label shadow-sm"
+                  : "text-ios-label"
               }`}
             >
               {s}
@@ -272,47 +266,45 @@ export default function Settings() {
       </section>
 
       {/* Members */}
-      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">Leden</h2>
+      <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Leden</p>
+      <section className="mb-6 overflow-hidden rounded-[12px] bg-white">
         {members.length === 0 ? (
-          <p className="text-sm text-gray-400">Laden...</p>
+          <p className="px-4 py-3 text-[15px] text-ios-tertiary">Laden...</p>
         ) : (
-          <ul className="space-y-1">
-            {members.map((m) => (
-              <li
-                key={m.id}
-                className="flex items-center gap-2 text-sm text-gray-700"
-              >
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-xs font-medium text-green-700">
-                  {m.name.charAt(0).toUpperCase()}
-                </span>
-                {m.name}
-                {m.id === user?.id && (
-                  <span className="text-xs text-gray-400">(jij)</span>
-                )}
-              </li>
-            ))}
-          </ul>
+          members.map((m, idx) => (
+            <div
+              key={m.id}
+              className={`flex min-h-[44px] items-center gap-3 px-4 py-3 ${
+                idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
+              }`}
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-light text-[13px] font-semibold text-accent">
+                {m.name.charAt(0).toUpperCase()}
+              </span>
+              <span className="text-[17px] text-ios-label">{m.name}</span>
+              {m.id === user?.id && (
+                <span className="text-[13px] text-ios-tertiary">(jij)</span>
+              )}
+            </div>
+          ))
         )}
       </section>
 
       {/* Category ordering */}
-      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Categorievolgorde</p>
+      <section className="mb-6 overflow-hidden rounded-[12px] bg-white p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-700">
-            Categorievolgorde
-          </h2>
+          <p className="text-[13px] text-ios-secondary">
+            Sleep categorie&euml;n om de volgorde aan te passen voor{" "}
+            <span className="font-semibold text-ios-label">{store}</span>.
+          </p>
           <button
             onClick={resetCategoryOrder}
-            className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-200"
+            className="rounded-[8px] bg-ios-category-bg px-3 py-1 text-[13px] text-ios-secondary"
           >
             Reset
           </button>
         </div>
-        <p className="mb-3 text-xs text-gray-400">
-          Sleep categorie&euml;n om de volgorde aan te passen voor{" "}
-          <span className="font-medium text-gray-600">{store}</span>.
-        </p>
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -334,7 +326,7 @@ export default function Settings() {
       {/* Logout */}
       <button
         onClick={handleLogout}
-        className="w-full rounded-lg border border-red-200 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50"
+        className="w-full rounded-[14px] border border-ios-destructive py-3 text-[15px] font-medium text-ios-destructive"
       >
         Uitloggen
       </button>
