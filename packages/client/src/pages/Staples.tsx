@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 
 const CATEGORIES = [
@@ -34,8 +35,7 @@ interface Staple {
 }
 
 export default function Staples() {
-  const [staples, setStaples] = useState<Staple[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [form, setForm] = useState({
     name: "",
     quantity: "1",
@@ -43,6 +43,13 @@ export default function Staples() {
     category: "Overig",
   });
   const categoryDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const { data: staples = [], isLoading: loading } = useQuery({
+    queryKey: ["staples"],
+    queryFn: () => apiFetch<Staple[]>("/staples"),
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["staples"] });
 
   // Auto-categorize when name changes
   const autoCategorizeName = (name: string) => {
@@ -65,28 +72,10 @@ export default function Staples() {
     }, 200);
   };
 
-  const fetchStaples = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiFetch<Staple[]>("/staples");
-      setStaples(data);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchStaples();
-  }, [fetchStaples]);
-
   const toggleActive = async (staple: Staple) => {
     // Optimistic update
-    setStaples((prev) =>
-      prev.map((s) =>
-        s.id === staple.id ? { ...s, active: !s.active } : s
-      )
+    queryClient.setQueryData<Staple[]>(["staples"], (old) =>
+      old?.map((s) => (s.id === staple.id ? { ...s, active: !s.active } : s)),
     );
     try {
       await apiFetch(`/staples/${staple.id}`, {
@@ -94,7 +83,7 @@ export default function Staples() {
         body: JSON.stringify({ active: !staple.active }),
       });
     } catch {
-      await fetchStaples();
+      await invalidate();
     }
   };
 
@@ -111,18 +100,20 @@ export default function Staples() {
         }),
       });
       setForm({ name: "", quantity: "1", unit: "stuk", category: "" });
-      await fetchStaples();
+      await invalidate();
     } catch {
       // ignore
     }
   };
 
   const deleteStaple = async (id: string) => {
-    setStaples((prev) => prev.filter((s) => s.id !== id));
+    queryClient.setQueryData<Staple[]>(["staples"], (old) =>
+      old?.filter((s) => s.id !== id),
+    );
     try {
       await apiFetch(`/staples/${id}`, { method: "DELETE" });
     } catch {
-      await fetchStaples();
+      await invalidate();
     }
   };
 

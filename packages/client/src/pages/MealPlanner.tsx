@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
@@ -52,88 +53,70 @@ function getWeekLabel(): string {
 
 export default function MealPlanner() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   useAuth();
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [store, setStore] = useState("Jumbo");
-  const [recommendations, setSuggestions] = useState<Suggestion[]>([]);
 
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const fetchSuggestions = useCallback(async () => {
-    try {
-      const data = await apiFetch<Suggestion[]>("/plans/current/recommendations");
-      setSuggestions(data);
-    } catch {
-      setSuggestions([]);
-    }
-  }, []);
+  const { data: plan = null, isLoading: loading } = useQuery({
+    queryKey: ["meal-plan"],
+    queryFn: () => apiFetch<Plan>("/plans/current"),
+    select(data) {
+      if (data.store && data.store !== store) setStore(data.store);
+      return data;
+    },
+  });
 
-  const fetchPlan = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await apiFetch<Plan>("/plans/current");
-      setPlan(data);
-      if (data.store) setStore(data.store);
-    } catch {
-      setPlan(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const { data: recommendations = [] } = useQuery({
+    queryKey: ["meal-suggestions"],
+    queryFn: () => apiFetch<Suggestion[]>("/plans/current/recommendations"),
+  });
 
+  // Debounce search query
   useEffect(() => {
-    fetchPlan().then(() => fetchSuggestions());
-  }, [fetchPlan, fetchSuggestions]);
+    if (searchQuery.length < 2) {
+      setDebouncedSearchQuery("");
+      return;
+    }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery]);
 
-  // Store preference is set when the plan is fetched or when the user selects one
+  const { data: searchResults = [] } = useQuery({
+    queryKey: ["recipe-search", debouncedSearchQuery],
+    queryFn: () => apiFetch<SearchResult[]>(`/recipes?search=${encodeURIComponent(debouncedSearchQuery)}`),
+    enabled: debouncedSearchQuery.length >= 2,
+  });
+
+  const invalidatePlan = () => queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
+  const invalidateSuggestions = () => queryClient.invalidateQueries({ queryKey: ["meal-suggestions"] });
 
   const createPlan = async () => {
     setCreating(true);
     try {
-      const data = await apiFetch<Plan>("/plans", {
+      await apiFetch<Plan>("/plans", {
         method: "POST",
         body: JSON.stringify({ store }),
       });
-      setPlan(data);
+      await invalidatePlan();
     } catch {
       // ignore
     } finally {
       setCreating(false);
     }
   };
-
-  // Debounced recipe search
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  useEffect(() => {
-    if (searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const data = await apiFetch<SearchResult[]>(
-          `/recipes?search=${encodeURIComponent(searchQuery)}`
-        );
-        setSearchResults(data);
-      } catch {
-        setSearchResults([]);
-      }
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery]);
 
   const addRecipeToPlan = async (recipe: SearchResult) => {
     if (!plan) return;
@@ -147,9 +130,9 @@ export default function MealPlanner() {
       });
       setShowSearch(false);
       setSearchQuery("");
-      setSearchResults([]);
-      await fetchPlan();
-      await fetchSuggestions();
+      setDebouncedSearchQuery("");
+      await invalidatePlan();
+      await invalidateSuggestions();
     } catch {
       // ignore
     }
@@ -171,7 +154,7 @@ export default function MealPlanner() {
         method: "PATCH",
         body: JSON.stringify(updates),
       });
-      await fetchPlan();
+      await invalidatePlan();
     } catch {
       // ignore
     }
@@ -183,8 +166,8 @@ export default function MealPlanner() {
       await apiFetch(`/plans/${plan.id}/recipes/${recipeId}`, {
         method: "DELETE",
       });
-      await fetchPlan();
-      await fetchSuggestions();
+      await invalidatePlan();
+      await invalidateSuggestions();
     } catch {
       // ignore
     }
@@ -392,7 +375,7 @@ export default function MealPlanner() {
                 onClick={() => {
                   setShowSearch(false);
                   setSearchQuery("");
-                  setSearchResults([]);
+                  setDebouncedSearchQuery("");
                 }}
                 className="mt-2 text-[13px] text-ios-secondary"
               >

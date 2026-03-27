@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "../api/client.js";
 import RecipeCard from "../components/RecipeCard.js";
 import ScrapeDialog from "../components/ScrapeDialog.js";
@@ -13,40 +14,28 @@ interface Recipe {
 }
 
 export default function Recipes() {
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showScrape, setShowScrape] = useState(false);
-  const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const fetchRecipes = async (query?: string) => {
-    setLoading(true);
-    try {
-      const params = query ? `?search=${encodeURIComponent(query)}` : "";
-      const data = await apiFetch<Recipe[]>(`/recipes${params}`);
-      setRecipes(data);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Initial load
-  useEffect(() => {
-    fetchRecipes();
-  }, []);
-
-  // Debounced search
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      fetchRecipes(search || undefined);
+      setDebouncedSearch(search);
     }, 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [search]);
+
+  const { data: recipes = [], isLoading: loading, refetch } = useQuery({
+    queryKey: ["recipes", debouncedSearch],
+    queryFn: async () => {
+      const params = debouncedSearch ? `?search=${encodeURIComponent(debouncedSearch)}` : "";
+      return apiFetch<Recipe[]>(`/recipes${params}`);
+    },
+  });
 
   return (
     <div>
@@ -88,7 +77,7 @@ export default function Recipes() {
       <ScrapeDialog
         open={showScrape}
         onClose={() => setShowScrape(false)}
-        onSaved={fetchRecipes}
+        onSaved={() => { refetch(); }}
       />
     </div>
   );

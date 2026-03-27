@@ -1,33 +1,32 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { authClient } from "../lib/auth-client.js";
 
 export default function Invite() {
   const { token } = useParams<{ token: string }>();
   const [name, setName] = useState("");
-  const [householdName, setHouseholdName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [validating, setValidating] = useState(true);
-  const [valid, setValid] = useState(false);
   const [showPasskey, setShowPasskey] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!token) return;
-    fetch(`/api/invite/${token}`)
-      .then(async (r) => {
-        const data = await r.json();
-        if (r.ok && data.valid) {
-          setValid(true);
-          setHouseholdName(data.householdName);
-        } else {
-          setError(data.error || "Ongeldige uitnodiging");
-        }
-      })
-      .catch(() => setError("Kon uitnodiging niet valideren"))
-      .finally(() => setValidating(false));
-  }, [token]);
+  const { data: invite, isLoading: validating } = useQuery({
+    queryKey: ["invite", token],
+    queryFn: async () => {
+      const r = await fetch(`/api/invite/${token}`);
+      const data = await r.json();
+      if (r.ok && data.valid) {
+        return { valid: true as const, householdName: data.householdName as string };
+      }
+      return { valid: false as const, error: (data.error || "Ongeldige uitnodiging") as string };
+    },
+    enabled: !!token,
+  });
+
+  const valid = invite?.valid === true;
+  const householdName = invite?.valid ? invite.householdName : "";
+  const inviteError = invite && !invite.valid ? invite.error : "";
 
   const handleAccept = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -78,7 +77,7 @@ export default function Invite() {
       <div className="flex min-h-screen items-center justify-center bg-ios-bg px-4">
         <div className="w-full max-w-sm space-y-6 text-center">
           <h1 className="text-[34px] font-bold text-ios-label">Uitnodiging ongeldig</h1>
-          <p className="text-[15px] text-ios-secondary">{error}</p>
+          <p className="text-[15px] text-ios-secondary">{inviteError || error}</p>
           <button
             onClick={() => navigate("/login")}
             className="text-[15px] text-accent underline"
@@ -107,12 +106,6 @@ export default function Invite() {
             className="w-full rounded-[14px] bg-accent px-4 py-4 text-[17px] font-semibold text-white disabled:opacity-50"
           >
             {loading ? "Bezig..." : "Passkey registreren"}
-          </button>
-          <button
-            onClick={() => navigate("/planner")}
-            className="w-full text-center text-[13px] text-ios-secondary"
-          >
-            Later instellen
           </button>
         </div>
       </div>

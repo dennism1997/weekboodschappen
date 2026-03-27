@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client";
 import CategoryGroup from "../components/CategoryGroup";
 import GroceryItemRow from "../components/GroceryItemRow";
@@ -34,52 +35,38 @@ interface Plan {
 
 export default function GroceryList() {
   const navigate = useNavigate();
-  const [list, setList] = useState<GroceryListData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "stuk" });
 
-  const fetchList = useCallback(async () => {
-    setLoading(true);
-    try {
-      // First get current plan to find list ID
+  const { data: list = null, isLoading: loading } = useQuery({
+    queryKey: ["grocery-list"],
+    queryFn: async () => {
       const plan = await apiFetch<Plan>("/plans/current");
       if (plan.listId) {
-        const data = await apiFetch<GroceryListData>(`/lists/${plan.listId}`);
-        setList(data);
-      } else {
-        setList(null);
+        return apiFetch<GroceryListData>(`/lists/${plan.listId}`);
       }
-    } catch {
-      setList(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+      return null;
+    },
+  });
 
-  useEffect(() => {
-    fetchList();
-  }, [fetchList]);
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ["grocery-list"] });
 
   const toggleItem = async (itemId: string) => {
     if (!list) return;
     const item = list.items.find((i) => i.id === itemId);
     if (!item) return;
     // Optimistic update
-    setList({
-      ...list,
-      items: list.items.map((i) =>
-        i.id === itemId ? { ...i, checked: !i.checked } : i
-      ),
-    });
+    queryClient.setQueryData<GroceryListData | null>(["grocery-list"], (old) =>
+      old ? { ...old, items: old.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) } : old,
+    );
     try {
       await apiFetch(`/lists/${list.id}/items/${itemId}`, {
         method: "PATCH",
         body: JSON.stringify({ checked: !item.checked }),
       });
     } catch {
-      // Revert on error
-      await fetchList();
+      await invalidate();
     }
   };
 
@@ -97,7 +84,7 @@ export default function GroceryList() {
       });
       setNewItem({ name: "", quantity: "1", unit: "stuk" });
       setShowAdd(false);
-      await fetchList();
+      await invalidate();
     } catch {
       // ignore
     }

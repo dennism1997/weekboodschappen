@@ -1,7 +1,8 @@
-import {useCallback, useEffect, useState} from "react";
-import {useNavigate} from "react-router-dom";
-import {apiFetch} from "../api/client";
-import {useOfflineQueue} from "../hooks/useOfflineQueue";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiFetch } from "../api/client";
+import { useOfflineQueue } from "../hooks/useOfflineQueue";
 import DiscountBadge from "../components/DiscountBadge";
 
 interface DiscountInfo {
@@ -33,40 +34,31 @@ interface Plan {
 
 export default function ShoppingMode() {
     const navigate = useNavigate();
-    const [list, setList] = useState<GroceryListData | null>(null);
-    const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
     const [addText, setAddText] = useState("");
     const [finalizing, setFinalizing] = useState(false);
     const {enqueue, isOnline} = useOfflineQueue();
 
-    const fetchList = useCallback(async () => {
-        try {
+    const { data: list = null, isLoading: loading } = useQuery({
+        queryKey: ["shopping-list"],
+        queryFn: async () => {
             const plan = await apiFetch<Plan>("/plans/current");
             if (plan.listId) {
-                const data = await apiFetch<GroceryListData>(`/lists/${plan.listId}`);
-                setList(data);
+                return apiFetch<GroceryListData>(`/lists/${plan.listId}`);
             }
-        } catch {
-            // ignore
-        } finally {
-            setLoading(false);
-        }
-    }, []);
+            return null;
+        },
+    });
 
-    useEffect(() => {
-        fetchList();
-    }, [fetchList]);
+    const invalidate = () => queryClient.invalidateQueries({ queryKey: ["shopping-list"] });
 
     const toggleItem = async (itemId: string) => {
         if (!list) return;
         const item = list.items.find((i) => i.id === itemId);
         if (!item) return;
-        setList({
-            ...list,
-            items: list.items.map((i) =>
-                i.id === itemId ? {...i, checked: !i.checked} : i
-            ),
-        });
+        queryClient.setQueryData<GroceryListData | null>(["shopping-list"], (old) =>
+            old ? { ...old, items: old.items.map((i) => (i.id === itemId ? {...i, checked: !i.checked} : i)) } : old,
+        );
         const url = `/lists/${list.id}/items/${itemId}`;
         const body = JSON.stringify({checked: !item.checked});
         if (!isOnline) {
@@ -76,7 +68,7 @@ export default function ShoppingMode() {
         try {
             await apiFetch(url, {method: "PATCH", body});
         } catch {
-            await fetchList();
+            await invalidate();
         }
     };
 
@@ -101,14 +93,16 @@ export default function ShoppingMode() {
                 source: "handmatig",
                 checked: false,
             };
-            setList({...list, items: [...list.items, tempItem]});
+            queryClient.setQueryData<GroceryListData | null>(["shopping-list"], (old) =>
+                old ? {...old, items: [...old.items, tempItem]} : old,
+            );
             setAddText("");
             return;
         }
         try {
             await apiFetch(url, {method: "POST", body});
             setAddText("");
-            await fetchList();
+            await invalidate();
         } catch {
             // ignore
         }

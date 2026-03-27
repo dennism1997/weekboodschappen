@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { authClient } from "../lib/auth-client.js";
 
 export default function Setup() {
@@ -7,19 +8,20 @@ export default function Setup() {
   const [householdName, setHouseholdName] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checking, setChecking] = useState(true);
   const [showPasskey, setShowPasskey] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetch("/api/setup/status")
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.needsSetup) navigate("/login", { replace: true });
-        else setChecking(false);
-      })
-      .catch(() => setChecking(false));
-  }, [navigate]);
+  const { isLoading: checking } = useQuery({
+    queryKey: ["setup-status"],
+    queryFn: async () => {
+      const r = await fetch("/api/setup/status");
+      return r.json() as Promise<{ needsSetup: boolean }>;
+    },
+    select(data) {
+      if (!data.needsSetup) navigate("/login", { replace: true });
+      return data;
+    },
+  });
 
   const handleSetup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -82,12 +84,6 @@ export default function Setup() {
             className="w-full rounded-[14px] bg-accent px-4 py-4 text-[17px] font-semibold text-white disabled:opacity-50"
           >
             {loading ? "Bezig..." : "Passkey registreren"}
-          </button>
-          <button
-            onClick={() => navigate("/planner")}
-            className="w-full text-center text-[13px] text-ios-secondary"
-          >
-            Later instellen
           </button>
         </div>
       </div>

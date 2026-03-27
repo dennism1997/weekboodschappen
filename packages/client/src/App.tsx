@@ -11,6 +11,7 @@ import Settings from "./pages/Settings.js";
 import Login from "./pages/Login.js";
 import Setup from "./pages/Setup.js";
 import Invite from "./pages/Invite.js";
+import NotFound from "./pages/NotFound.js";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { authenticated, loading } = useAuth();
@@ -41,6 +42,7 @@ export default function App() {
         <Route path="/recipes/:id" element={<RecipeDetail />} />
         <Route path="/settings" element={<Settings />} />
       </Route>
+      <Route path="*" element={<NotFound />} />
     </Routes>
   );
 }

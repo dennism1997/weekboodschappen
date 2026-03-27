@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/client.js";
 
 interface Ingredient {
@@ -36,31 +37,27 @@ interface Plan {
 export default function RecipeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [recipe, setRecipe] = useState<Recipe | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
 
-  const fetchPlan = useCallback(async () => {
-    try {
+  const { data: recipe = null, isLoading: loading } = useQuery({
+    queryKey: ["recipe", id],
+    queryFn: () => apiFetch<Recipe>(`/recipes/${id}`),
+    enabled: !!id,
+  });
+
+  const { data: plan = null } = useQuery({
+    queryKey: ["current-plan-for-recipe", id],
+    queryFn: async () => {
       const data = await apiFetch<Plan>("/plans/current");
-      setPlan(data);
       if (id && data.recipes.some((r) => r.recipeId === id)) {
         setAdded(true);
       }
-    } catch {
-      setPlan(null);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    apiFetch<Recipe>(`/recipes/${id}`)
-      .then(setRecipe)
-      .catch(() => navigate("/recipes"))
-      .finally(() => setLoading(false));
-    fetchPlan();
-  }, [id, navigate, fetchPlan]);
+      return data;
+    },
+    enabled: !!id,
+  });
 
   if (loading) return <p className="text-center text-gray-400">Laden...</p>;
   if (!recipe) return null;
@@ -76,7 +73,6 @@ export default function RecipeDetail() {
           body: JSON.stringify({ store: "Jumbo" }),
         });
         planId = newPlan.id;
-        setPlan(newPlan);
       }
       await apiFetch(`/plans/${planId}/recipes`, {
         method: "POST",
@@ -86,6 +82,7 @@ export default function RecipeDetail() {
         }),
       });
       setAdded(true);
+      queryClient.invalidateQueries({ queryKey: ["current-plan-for-recipe"] });
     } catch {
       // ignore
     } finally {

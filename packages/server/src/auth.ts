@@ -13,7 +13,7 @@ if (!SECRET) {
 export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: drizzleAdapter(db, { provider: "sqlite" }),
   secret: SECRET,
-  baseURL: process.env.BETTER_AUTH_URL || "http://localhost:6883",
+  baseURL: process.env.APP_URL || "http://localhost:6883",
   basePath: "/api/auth",
   trustedOrigins: (process.env.TRUSTED_ORIGINS || "http://localhost:5173").split(","),
   emailAndPassword: { enabled: true },

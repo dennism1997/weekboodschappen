@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "../api/client";
 import { authClient } from "../lib/auth-client";
@@ -96,13 +97,11 @@ function SortableItem({ id }: { id: string }) {
 
 export default function Settings() {
   const { user, household, signOut } = useAuth();
-  const [members, setMembers] = useState<Member[]>([]);
   const [store, setStore] = useState("Jumbo");
   const [copied, setCopied] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
-  const [storeConfigs, setStoreConfigs] = useState<Record<string, string[]>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -112,38 +111,25 @@ export default function Settings() {
     }),
   );
 
-  useEffect(() => {
-    async function fetchMembers() {
-      if (!household) return;
-      try {
-        const result = await authClient.organization.getFullOrganization();
-        if (result.data) {
-          setMembers(
-            result.data.members.map((m: any) => ({
-              id: m.user.id,
-              name: m.user.name || m.user.email,
-            })),
-          );
-        }
-      } catch {
-        // ignore
+  const { data: members = [] } = useQuery({
+    queryKey: ["members", household?.id],
+    queryFn: async () => {
+      const result = await authClient.organization.getFullOrganization();
+      if (result.data) {
+        return result.data.members.map((m: any) => ({
+          id: m.user.id,
+          name: m.user.name || m.user.email,
+        })) as Member[];
       }
-    }
-    fetchMembers();
-  }, [household]);
+      return [] as Member[];
+    },
+    enabled: !!household,
+  });
 
-  // Fetch store configs on mount
-  useEffect(() => {
-    async function fetchStoreConfigs() {
-      try {
-        const configs = await apiFetch<Record<string, string[]>>("/stores/config");
-        setStoreConfigs(configs);
-      } catch {
-        // ignore
-      }
-    }
-    fetchStoreConfigs();
-  }, []);
+  const { data: storeConfigs = {} } = useQuery({
+    queryKey: ["store-configs"],
+    queryFn: () => apiFetch<Record<string, string[]>>("/stores/config"),
+  });
 
   // Update categories when store or configs change
   useEffect(() => {
