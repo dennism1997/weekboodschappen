@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bookmark } from "lucide-react";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
@@ -64,6 +65,9 @@ export default function MealPlanner() {
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
   const [showSearch, setShowSearch] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  // Track which suggestions have been saved as recipes (index → recipeId)
+  const [savedSuggestions, setSavedSuggestions] = useState<Record<number, string>>({});
 
   const { data: plan = null, isLoading: loading } = useQuery({
     queryKey: ["meal-plan"],
@@ -138,9 +142,45 @@ export default function MealPlanner() {
     }
   };
 
-  const addSuggestionToPlan = async (rec: Suggestion) => {
+  const saveSuggestionAsRecipe = async (rec: Suggestion): Promise<string | null> => {
+    try {
+      const created = await apiFetch<{ id: string }>("/recipes/from-suggestion", {
+        method: "POST",
+        body: JSON.stringify({
+          title: rec.title,
+          description: rec.description,
+          ingredients: rec.ingredients,
+        }),
+      });
+      return created.id;
+    } catch {
+      return null;
+    }
+  };
+
+  const addSuggestionToPlan = async (rec: Suggestion, index: number) => {
+    if (!plan) return;
+    let recipeId: string | undefined;
+
     if (rec.isExisting && rec.existingRecipeId) {
-      await addRecipeToPlan({ id: rec.existingRecipeId, title: rec.title, servings: 4 });
+      recipeId = rec.existingRecipeId;
+    } else if (savedSuggestions[index]) {
+      recipeId = savedSuggestions[index];
+    } else {
+      const newId = await saveSuggestionAsRecipe(rec);
+      if (!newId) return;
+      recipeId = newId;
+      setSavedSuggestions((prev) => ({ ...prev, [index]: newId }));
+    }
+
+    await addRecipeToPlan({ id: recipeId, title: rec.title, servings: 4 });
+  };
+
+  const saveToRecipes = async (rec: Suggestion, index: number) => {
+    const newId = await saveSuggestionAsRecipe(rec);
+    if (newId) {
+      setSavedSuggestions((prev) => ({ ...prev, [index]: newId }));
+      await invalidateSuggestions();
     }
   };
 
@@ -251,23 +291,43 @@ export default function MealPlanner() {
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {recommendations.map((rec, i) => (
-                  <div key={i} className="rounded-[12px] bg-white p-4">
-                    <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
-                    {rec.description && (
-                      <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
-                    )}
-                    {rec.discountMatches.length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-1">
-                        {rec.discountMatches.map((d, j) => (
-                          <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
-                            korting: {d}
-                          </span>
-                        ))}
+                {recommendations.map((rec, i) => {
+                  const isSaved = rec.isExisting || !!savedSuggestions[i];
+
+                  return (
+                    <div key={i} className="rounded-[12px] bg-white p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                          {rec.description && (
+                            <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
+                          )}
+                          {rec.discountMatches.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {rec.discountMatches.map((d, j) => (
+                                <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
+                                  korting: {d}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => saveToRecipes(rec, i)}
+                          disabled={isSaved}
+                          className={`shrink-0 rounded-[8px] p-1.5 ${
+                            isSaved
+                              ? "bg-accent text-white"
+                              : "bg-ios-grouped-bg text-ios-secondary"
+                          }`}
+                          title={isSaved ? "Opgeslagen in recepten" : "Opslaan in recepten"}
+                        >
+                          <Bookmark className="h-4 w-4" fill={isSaved ? "currentColor" : "none"} />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -407,35 +467,56 @@ export default function MealPlanner() {
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {recommendations.map((rec, i) => (
-                  <div key={i} className="rounded-[12px] bg-white p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
-                        {rec.description && (
-                          <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
-                        )}
-                        {rec.discountMatches.length > 0 && (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {rec.discountMatches.map((d, j) => (
-                              <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
-                                korting: {d}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                {recommendations.map((rec, i) => {
+                  const isSaved = rec.isExisting || !!savedSuggestions[i];
+                  const alreadyInPlan = plan.recipes.some(
+                    (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[i]
+                  );
+
+                  return (
+                    <div key={i} className="rounded-[12px] bg-white p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                          {rec.description && (
+                            <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
+                          )}
+                          {rec.discountMatches.length > 0 && (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {rec.discountMatches.map((d, j) => (
+                                <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
+                                  korting: {d}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            onClick={() => saveToRecipes(rec, i)}
+                            disabled={isSaved}
+                            className={`rounded-[8px] p-1.5 ${
+                              isSaved
+                                ? "bg-accent text-white"
+                                : "bg-ios-grouped-bg text-ios-secondary"
+                            }`}
+                            title={isSaved ? "Opgeslagen in recepten" : "Opslaan in recepten"}
+                          >
+                            <Bookmark className="h-4 w-4" fill={isSaved ? "currentColor" : "none"} />
+                          </button>
+                          {!alreadyInPlan && (
+                            <button
+                              onClick={() => addSuggestionToPlan(rec, i)}
+                              className="rounded-[8px] bg-accent px-3 py-1.5 text-[13px] font-semibold text-white"
+                            >
+                              + Plan
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      {rec.isExisting && rec.existingRecipeId && (
-                        <button
-                          onClick={() => addSuggestionToPlan(rec)}
-                          className="ml-2 shrink-0 rounded-[8px] bg-accent px-3 py-1.5 text-[13px] font-semibold text-white"
-                        >
-                          + Plan
-                        </button>
-                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
