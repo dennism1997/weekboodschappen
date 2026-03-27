@@ -107,7 +107,7 @@ export default function MealPlanner() {
     enabled: !!selectedPlanId,
   });
 
-  const { data: initialSuggestions = [] } = useQuery({
+  const { data: initialSuggestions = [], isLoading: suggestionsLoading } = useQuery({
     queryKey: ["meal-suggestions"],
     queryFn: () => apiFetch<Suggestion[]>("/plans/current/recommendations"),
   });
@@ -364,6 +364,13 @@ export default function MealPlanner() {
               {creating ? "Bezig..." : "Nieuw weekplan"}
             </button>
           </div>
+
+          {suggestionsLoading && allSuggestions.length === 0 && (
+            <div className="mt-6 py-8 text-center">
+              <p className="text-[15px] text-ios-secondary">Suggesties laden...</p>
+              <p className="mt-1 text-[13px] text-ios-tertiary">We zoeken recepten voor je</p>
+            </div>
+          )}
 
           {allSuggestions.length > 0 && (
             <div className="mt-6">
@@ -623,6 +630,13 @@ export default function MealPlanner() {
           )}
 
           {/* Suggestions */}
+          {suggestionsLoading && allSuggestions.length === 0 && (
+            <div className="mt-6 py-8 text-center">
+              <p className="text-[15px] text-ios-secondary">Suggesties laden...</p>
+              <p className="mt-1 text-[13px] text-ios-tertiary">We zoeken recepten voor je</p>
+            </div>
+          )}
+
           {allSuggestions.length > 0 && (
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
