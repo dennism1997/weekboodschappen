@@ -17,12 +17,20 @@ export default function Login() {
   const { signIn, signUp, createOrganization, setActiveOrganization } = useAuth();
   const navigate = useNavigate();
 
+  const activateFirstOrganization = async () => {
+    const orgs = await authClient.organization.list();
+    if (orgs.data && orgs.data.length > 0) {
+      await authClient.organization.setActive({ organizationId: orgs.data[0].id });
+    }
+  };
+
   const handlePasskeyLogin = async () => {
     setError("");
     setLoading(true);
     try {
       const result = await authClient.signIn.passkey();
       if (result?.error) throw new Error(String(result.error.message || "Passkey login mislukt"));
+      await activateFirstOrganization();
       navigate("/planner");
     } catch (err: any) {
       setError(err.message || "Passkey login mislukt");
@@ -154,6 +162,7 @@ export default function Login() {
               try {
                 const result = await signIn({ email, password });
                 if (result?.error) throw new Error(result.error.message || "Inloggen mislukt");
+                await activateFirstOrganization();
                 navigate("/planner");
               } catch (err: any) {
                 setError(err.message || "Inloggen mislukt");

@@ -32,8 +32,8 @@ app.use((_req, res, next) => {
 
 // Auth rate limiter
 const authLimiter = rateLimit({
-  windowMs: 60_000,
-  max: 10,
+  windowMs: 10_000,
+  limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
 });
