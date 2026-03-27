@@ -39,7 +39,7 @@ const authLimiter = rateLimit({
 });
 
 // Mount Better Auth handler first (needs raw body)
-app.all("/api/auth/*", authLimiter, toNodeHandler(auth));
+app.all("/api/auth/*splat", authLimiter, toNodeHandler(auth));
 
 // Then JSON parser for other routes
 app.use(express.json());
@@ -78,7 +78,7 @@ app.use(
 const clientDist = join(__dirname, "../../client/dist");
 if (existsSync(clientDist)) {
   app.use(express.static(clientDist));
-  app.get("*", (_req, res) => {
+  app.get("*splat", (_req, res) => {
     res.sendFile(join(clientDist, "index.html"));
   });
 }

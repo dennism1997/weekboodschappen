@@ -26,13 +26,6 @@ interface Member {
   name: string;
 }
 
-interface StoreConfig {
-  id: string;
-  householdId: string;
-  store: string;
-  categoryOrder: string[];
-}
-
 const STORES = ["Jumbo", "Albert Heijn"];
 
 const DEFAULT_CATEGORIES = [
@@ -107,7 +100,7 @@ export default function Settings() {
   const [store, setStore] = useState("Jumbo");
   const [copied, setCopied] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
-  const [storeConfigs, setStoreConfigs] = useState<StoreConfig[]>([]);
+  const [storeConfigs, setStoreConfigs] = useState<Record<string, string[]>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -141,7 +134,7 @@ export default function Settings() {
   useEffect(() => {
     async function fetchStoreConfigs() {
       try {
-        const configs = await apiFetch<StoreConfig[]>("/stores/config");
+        const configs = await apiFetch<Record<string, string[]>>("/stores/config");
         setStoreConfigs(configs);
       } catch {
         // ignore
@@ -153,9 +146,9 @@ export default function Settings() {
   // Update categories when store or configs change
   useEffect(() => {
     const apiName = storeToApiName(store);
-    const config = storeConfigs.find((c) => c.store === apiName);
-    if (config && config.categoryOrder.length > 0) {
-      setCategories(config.categoryOrder);
+    const categoryOrder = storeConfigs[apiName];
+    if (categoryOrder && categoryOrder.length > 0) {
+      setCategories(categoryOrder);
     } else {
       setCategories(DEFAULT_CATEGORIES);
     }
@@ -199,16 +192,8 @@ export default function Settings() {
     }
   };
 
-  const updateStore = async (newStore: string) => {
+  const updateStore = (newStore: string) => {
     setStore(newStore);
-    try {
-      await apiFetch("/household", {
-        method: "PATCH",
-        body: JSON.stringify({ preferredStore: newStore }),
-      });
-    } catch {
-      // ignore
-    }
   };
 
   const copyInviteLink = async () => {
