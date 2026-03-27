@@ -1,6 +1,6 @@
 import { schedule } from "node-cron";
 import { db } from "../db/connection.js";
-import { productDiscount } from "../db/schema.js";
+import { productDiscount, cachedSuggestion } from "../db/schema.js";
 import { sql } from "drizzle-orm";
 import { refreshAllDiscounts } from "../services/discounts.js";
 import { refreshAllCachedSuggestions } from "../services/recommendations.js";
@@ -40,14 +40,21 @@ async function refreshDiscountsAndSuggestions(): Promise<void> {
  * - Schedule daily refresh at 06:00
  */
 export function initScheduler(): void {
-  // Check on startup if discounts need refreshing
+  // Check on startup if discounts or suggestions need refreshing
+  const hasCachedSuggestions = db.select().from(cachedSuggestion).limit(1).get();
+
   if (discountsAreStale()) {
     console.log("Discounts are stale, refreshing...");
     refreshDiscountsAndSuggestions().catch((err) => {
       console.error("Startup refresh failed:", err);
     });
+  } else if (!hasCachedSuggestions) {
+    console.log("No cached suggestions found, generating...");
+    refreshAllCachedSuggestions().catch((err) => {
+      console.error("Startup suggestion generation failed:", err);
+    });
   } else {
-    console.log("Discounts are fresh, skipping startup refresh.");
+    console.log("Discounts and suggestions are fresh, skipping startup refresh.");
   }
 
   // Schedule daily refresh at 06:00
