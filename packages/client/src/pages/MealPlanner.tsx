@@ -49,7 +49,6 @@ interface SearchResult {
 }
 
 const DAYS = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
-const STORES = ["Jumbo", "Albert Heijn"];
 
 function getWeekLabel(weekStart: string): string {
   const monday = new Date(weekStart);
@@ -66,7 +65,6 @@ export default function MealPlanner() {
   useAuth();
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const [store, setStore] = useState("Jumbo");
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   // Plan rename
@@ -136,12 +134,6 @@ export default function MealPlanner() {
     }
   };
 
-  // Sync store with current plan
-  useEffect(() => {
-    if (currentPlan && currentPlan.store && currentPlan.store !== store) {
-      setStore(currentPlan.store);
-    }
-  }, [currentPlan]);
 
   // Debounce search query
   useEffect(() => {
@@ -175,7 +167,7 @@ export default function MealPlanner() {
     try {
       const newPlan = await apiFetch<Plan>("/plans", {
         method: "POST",
-        body: JSON.stringify({ store }),
+        body: JSON.stringify({}),
       });
       setSelectedPlanId(newPlan.id);
       await invalidatePlans();
@@ -309,27 +301,13 @@ export default function MealPlanner() {
     try {
       await apiFetch(`/plans/${currentPlan.id}/generate-list`, {
         method: "POST",
-        body: JSON.stringify({ store }),
+        body: JSON.stringify({}),
       });
       navigate("/list");
     } catch {
       // ignore
     } finally {
       setGenerating(false);
-    }
-  };
-
-  const updateStore = async (newStore: string) => {
-    setStore(newStore);
-    if (currentPlan) {
-      try {
-        await apiFetch(`/plans/${currentPlan.id}`, {
-          method: "PATCH",
-          body: JSON.stringify({ store: newStore }),
-        });
-      } catch {
-        // ignore
-      }
     }
   };
 
@@ -370,23 +348,6 @@ export default function MealPlanner() {
           </div>
         </div>
       )}
-
-      {/* Store selector — iOS segmented control */}
-      <div className="mb-5 flex rounded-[9px] bg-ios-segmented-bg p-0.5">
-        {STORES.map((s) => (
-          <button
-            key={s}
-            onClick={() => updateStore(s)}
-            className={`flex-1 rounded-[7px] py-[7px] text-[13px] font-semibold transition ${
-              store === s
-                ? "bg-white text-ios-label shadow-sm"
-                : "text-ios-label"
-            }`}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
 
       {!currentPlan ? (
         <>

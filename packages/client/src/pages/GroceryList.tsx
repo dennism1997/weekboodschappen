@@ -33,11 +33,14 @@ interface Plan {
   listId: string | null;
 }
 
+const STORES = ["Jumbo", "Albert Heijn"];
+
 export default function GroceryList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showAdd, setShowAdd] = useState(false);
   const [newItem, setNewItem] = useState({ name: "", quantity: "1", unit: "stuk" });
+  const [store, setStore] = useState("Jumbo");
 
   const { data: list = null, isLoading: loading } = useQuery({
     queryKey: ["grocery-list"],
@@ -150,6 +153,23 @@ export default function GroceryList() {
         >
           + Item
         </button>
+      </div>
+
+      {/* Store selector */}
+      <div className="mb-4 flex rounded-[9px] bg-ios-segmented-bg p-0.5">
+        {STORES.map((s) => (
+          <button
+            key={s}
+            onClick={() => setStore(s)}
+            className={`flex-1 rounded-[7px] py-[7px] text-[13px] font-semibold transition ${
+              store === s
+                ? "bg-white text-ios-label shadow-sm"
+                : "text-ios-label"
+            }`}
+          >
+            {s}
+          </button>
+        ))}
       </div>
 
       {/* Add item form */}
