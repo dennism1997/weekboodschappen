@@ -1,11 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { authClient } from "../lib/auth-client.js";
 
 export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(true);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    fetch("/api/setup/status")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.needsSetup) navigate("/setup", { replace: true });
+        else setChecking(false);
+      })
+      .catch(() => setChecking(false));
+  }, [navigate]);
+
+  if (checking) {
+    return <div className="flex h-screen items-center justify-center text-ios-secondary">Laden...</div>;
+  }
 
   const handlePasskeyLogin = async () => {
     setError("");

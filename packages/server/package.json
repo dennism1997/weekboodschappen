@@ -10,6 +10,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
+    "db:reset": "rm -f ${DATABASE_PATH:-./data/weekboodschappen.db} ${DATABASE_PATH:-./data/weekboodschappen.db}-wal ${DATABASE_PATH:-./data/weekboodschappen.db}-shm",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
