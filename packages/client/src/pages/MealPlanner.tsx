@@ -13,6 +13,7 @@ interface Suggestion {
   isExisting: boolean;
   existingRecipeId?: string;
   recipeUrl?: string;
+  rating?: number;
 }
 
 interface PlanRecipe {
@@ -83,6 +84,7 @@ export default function MealPlanner() {
 
   // Track which suggestions have been saved as recipes (index → recipeId)
   const [savedSuggestions, setSavedSuggestions] = useState<Record<number, string>>({});
+  const [visibleSuggestions, setVisibleSuggestions] = useState(5);
 
   // Fetch all plans
   const { data: allPlans = [] } = useQuery({
@@ -381,7 +383,7 @@ export default function MealPlanner() {
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {recommendations.map((rec, i) => {
+                {recommendations.slice(0, visibleSuggestions).map((rec, i) => {
                   const isSaved = rec.isExisting || !!savedSuggestions[i];
 
                   return (
@@ -391,6 +393,16 @@ export default function MealPlanner() {
                           <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
+                          )}
+                          {rec.rating != null && (
+                            <p className="mt-0.5 text-[12px] text-ios-tertiary">
+                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {rec.rating}/5
+                            </p>
+                          )}
+                          {rec.recipeUrl && (
+                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[12px] text-accent">
+                              Bekijk recept →
+                            </a>
                           )}
                           {rec.discountMatches.length > 0 && (
                             <div className="mt-1.5 flex flex-wrap gap-1">
@@ -419,6 +431,14 @@ export default function MealPlanner() {
                   );
                 })}
               </div>
+              {recommendations.length > visibleSuggestions && (
+                <button
+                  onClick={() => setVisibleSuggestions((prev) => prev + 5)}
+                  className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent"
+                >
+                  Meer suggesties laden ({recommendations.length - visibleSuggestions} over)
+                </button>
+              )}
             </div>
           )}
         </>
@@ -622,7 +642,7 @@ export default function MealPlanner() {
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {recommendations.map((rec, i) => {
+                {recommendations.slice(0, visibleSuggestions).map((rec, i) => {
                   const isSaved = rec.isExisting || !!savedSuggestions[i];
                   const alreadyInPlan = currentPlan.recipes.some(
                     (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[i]
@@ -635,6 +655,16 @@ export default function MealPlanner() {
                           <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
+                          )}
+                          {rec.rating != null && (
+                            <p className="mt-0.5 text-[12px] text-ios-tertiary">
+                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {rec.rating}/5
+                            </p>
+                          )}
+                          {rec.recipeUrl && (
+                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[12px] text-accent">
+                              Bekijk recept →
+                            </a>
                           )}
                           {rec.discountMatches.length > 0 && (
                             <div className="mt-1.5 flex flex-wrap gap-1">
@@ -673,6 +703,14 @@ export default function MealPlanner() {
                   );
                 })}
               </div>
+              {recommendations.length > visibleSuggestions && (
+                <button
+                  onClick={() => setVisibleSuggestions((prev) => prev + 5)}
+                  className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent"
+                >
+                  Meer suggesties laden ({recommendations.length - visibleSuggestions} over)
+                </button>
+              )}
             </div>
           )}
         </>

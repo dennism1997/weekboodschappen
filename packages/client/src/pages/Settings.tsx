@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "../api/client";
 import { authClient } from "../lib/auth-client";
@@ -24,6 +24,12 @@ import { CSS } from "@dnd-kit/utilities";
 
 interface Member {
   id: string;
+  name: string;
+}
+
+interface FavoriteWebsite {
+  id: string;
+  url: string;
   name: string;
 }
 
@@ -97,6 +103,7 @@ function SortableItem({ id }: { id: string }) {
 
 export default function Settings() {
   const { user, household, signOut } = useAuth();
+  const queryClient = useQueryClient();
   const [store, setStore] = useState("Jumbo");
   const [copied, setCopied] = useState(false);
   const [inviteUrl, setInviteUrl] = useState("");
@@ -104,6 +111,11 @@ export default function Settings() {
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [recoveryUrl, setRecoveryUrl] = useState("");
   const [resettingUserId, setResettingUserId] = useState("");
+
+  // Favorite websites
+  const [newWebsiteName, setNewWebsiteName] = useState("");
+  const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
+  const [addingWebsite, setAddingWebsite] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -132,6 +144,38 @@ export default function Settings() {
     queryKey: ["store-configs"],
     queryFn: () => apiFetch<Record<string, string[]>>("/stores/config"),
   });
+
+  const { data: websites = [] } = useQuery({
+    queryKey: ["favorite-websites"],
+    queryFn: () => apiFetch<FavoriteWebsite[]>("/websites"),
+  });
+
+  const addWebsite = async () => {
+    if (!newWebsiteName.trim() || !newWebsiteUrl.trim()) return;
+    setAddingWebsite(true);
+    try {
+      await apiFetch("/websites", {
+        method: "POST",
+        body: JSON.stringify({ name: newWebsiteName.trim(), url: newWebsiteUrl.trim() }),
+      });
+      setNewWebsiteName("");
+      setNewWebsiteUrl("");
+      queryClient.invalidateQueries({ queryKey: ["favorite-websites"] });
+    } catch {
+      // ignore
+    } finally {
+      setAddingWebsite(false);
+    }
+  };
+
+  const removeWebsite = async (id: string) => {
+    try {
+      await apiFetch(`/websites/${id}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["favorite-websites"] });
+    } catch {
+      // ignore
+    }
+  };
 
   // Update categories when store or configs change
   useEffect(() => {
@@ -339,6 +383,64 @@ export default function Settings() {
           </button>
         </div>
       )}
+
+      {/* Favorite websites */}
+      <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Favoriete receptenwebsites</p>
+      <section className="mb-6 overflow-hidden rounded-[12px] bg-white">
+        {websites.length === 0 ? (
+          <p className="px-4 py-3 text-[15px] text-ios-tertiary">Nog geen websites toegevoegd.</p>
+        ) : (
+          websites.map((w, idx) => (
+            <div
+              key={w.id}
+              className={`flex min-h-[44px] items-center justify-between px-4 py-3 ${
+                idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
+              }`}
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold text-ios-label">{w.name}</p>
+                <p className="truncate text-[13px] text-ios-secondary">{w.url}</p>
+              </div>
+              <button
+                onClick={() => removeWebsite(w.id)}
+                className="ml-2 shrink-0 text-ios-destructive"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ))
+        )}
+        <div className={`px-4 py-3 ${websites.length > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""}`}>
+          <div className="flex flex-col gap-2">
+            <input
+              type="text"
+              placeholder="Naam (bijv. Allerhande)"
+              value={newWebsiteName}
+              onChange={(e) => setNewWebsiteName(e.target.value)}
+              className="w-full rounded-[8px] border border-ios-separator bg-ios-grouped-bg px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
+            />
+            <div className="flex gap-2">
+              <input
+                type="url"
+                placeholder="URL (bijv. ah.nl/allerhande)"
+                value={newWebsiteUrl}
+                onChange={(e) => setNewWebsiteUrl(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") addWebsite(); }}
+                className="min-w-0 flex-1 rounded-[8px] border border-ios-separator bg-ios-grouped-bg px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
+              />
+              <button
+                onClick={addWebsite}
+                disabled={addingWebsite || !newWebsiteName.trim() || !newWebsiteUrl.trim()}
+                className="shrink-0 rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
+              >
+                {addingWebsite ? "..." : "Toevoegen"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Category ordering */}
       <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Categorievolgorde</p>

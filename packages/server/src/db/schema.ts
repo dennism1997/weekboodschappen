@@ -151,6 +151,16 @@ export const productDiscount = sqliteTable("product_discount", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const favoriteWebsite = sqliteTable("favorite_website", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id").notNull(),
+  url: text("url").notNull(),
+  name: text("name").notNull(),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 export const shoppingHistory = sqliteTable("shopping_history", {
   id: text("id").primaryKey(),
   householdId: text("household_id").notNull(),

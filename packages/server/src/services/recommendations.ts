@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db/connection.js";
-import { recipe, productDiscount, weeklyStaple } from "../db/schema.js";
+import { recipe, productDiscount, weeklyStaple, favoriteWebsite } from "../db/schema.js";
 import { eq, and, gte, lte } from "drizzle-orm";
 
 const client = new Anthropic();
@@ -13,6 +13,7 @@ export interface Suggestion {
   isExisting: boolean;
   existingRecipeId?: string;
   recipeUrl?: string;
+  rating?: number;
 }
 
 function getSeason(date: Date): string {
@@ -71,6 +72,13 @@ export async function getRecommendations(
     .where(and(eq(weeklyStaple.householdId, householdId), eq(weeklyStaple.active, true)))
     .all();
 
+  // 5. Favorite recipe websites
+  const websites = db
+    .select({ url: favoriteWebsite.url, name: favoriteWebsite.name })
+    .from(favoriteWebsite)
+    .where(eq(favoriteWebsite.householdId, householdId))
+    .all();
+
   // Build the prompt
   const discountSection =
     discounts.length > 0
@@ -92,12 +100,17 @@ export async function getRecommendations(
       ? `\nWekelijkse basisproducten (hoef je niet als ingredienten te noemen): ${staples.map((s) => s.name).join(", ")}\n`
       : "";
 
+  const websitesSection =
+    websites.length > 0
+      ? `\nFavoriete receptenwebsites van het huishouden:\n${websites.map((w) => `- ${w.name}: ${w.url}`).join("\n")}\nZoek bij voorkeur recepten van deze websites. Geef voor elk recept de directe URL naar het recept op de website (recipeUrl). Als je geen exacte URL weet, geef dan de zoek-URL van de website.\n`
+      : "";
+
   const prompt = `Je bent een behulpzame Nederlandse maaltijdplanner. Stel 5-7 avondmaaltijden voor voor een Nederlands huishouden.
 
 Context:
 - Seizoen: ${season}
 - Week van: ${weekStart}
-${discountSection}${recentSection}${librarySection}${staplesSection}
+${discountSection}${recentSection}${librarySection}${staplesSection}${websitesSection}
 
 Regels:
 - Suggereer een mix van Nederlandse en internationale gerechten die passen bij Nederlandse supermarkten (Albert Heijn, Jumbo).
@@ -106,7 +119,9 @@ Regels:
 - Als een suggestie overeenkomt met een recept in de bestaande bibliotheek, gebruik dan dat recept (isExisting: true, existingRecipeId: het id).
 - Nieuwe suggesties moeten isExisting: false hebben.
 - discountMatches moet de namen bevatten van afgeprijsde producten die in het recept passen.
-
+${websites.length > 0 ? `- Gebruik bij voorkeur recepten van de favoriete websites. Vul recipeUrl in met de directe link naar het recept.
+- Suggereer ALLEEN recepten die een goede beoordeling hebben (minimaal 3 uit 5 sterren of equivalent). Vul het rating veld in met de beoordeling (1-5 schaal). Recepten zonder beoordeling mogen wel, maar zet rating dan op null.
+` : ""}
 Antwoord ALLEEN met geldige JSON in dit formaat:
 [
   {
@@ -116,7 +131,8 @@ Antwoord ALLEEN met geldige JSON in dit formaat:
     "discountMatches": ["product in aanbieding"],
     "isExisting": false,
     "existingRecipeId": null,
-    "recipeUrl": null
+    "recipeUrl": null,
+    "rating": null
   }
 ]`;
 
@@ -142,17 +158,25 @@ Antwoord ALLEEN met geldige JSON in dit formaat:
       isExisting: boolean;
       existingRecipeId?: string | null;
       recipeUrl?: string | null;
+      rating?: number | null;
     }>;
 
-    return parsed.map((item) => ({
-      title: item.title,
-      description: item.description || "",
-      ingredients: item.ingredients || [],
-      discountMatches: item.discountMatches || [],
-      isExisting: item.isExisting || false,
-      existingRecipeId: item.existingRecipeId || undefined,
-      recipeUrl: item.recipeUrl || undefined,
-    }));
+    return parsed
+      .filter((item) => {
+        // Filter out recipes with rating below 3
+        if (item.rating != null && item.rating < 3) return false;
+        return true;
+      })
+      .map((item) => ({
+        title: item.title,
+        description: item.description || "",
+        ingredients: item.ingredients || [],
+        discountMatches: item.discountMatches || [],
+        isExisting: item.isExisting || false,
+        existingRecipeId: item.existingRecipeId || undefined,
+        recipeUrl: item.recipeUrl || undefined,
+        rating: item.rating ?? undefined,
+      }));
   } catch {
     // JSON parse failure — return empty to trigger fallback
     return [];
