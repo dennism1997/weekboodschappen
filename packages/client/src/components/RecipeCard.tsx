@@ -20,7 +20,7 @@ export default function RecipeCard({
   return (
     <Link
       to={`/recipes/${id}`}
-      className="block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:shadow-md"
+      className="block overflow-hidden rounded-[12px] bg-white shadow-sm transition hover:shadow-md"
     >
       {imageUrl ? (
         <img
@@ -29,13 +29,13 @@ export default function RecipeCard({
           className="h-36 w-full object-cover"
         />
       ) : (
-        <div className="flex h-36 items-center justify-center bg-gray-100 text-3xl">
+        <div className="flex h-36 items-center justify-center bg-ios-category-bg text-3xl">
           🍽️
         </div>
       )}
       <div className="p-3">
-        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2">{title}</h3>
-        <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
+        <h3 className="text-[15px] font-semibold text-ios-label line-clamp-2">{title}</h3>
+        <div className="mt-1 flex items-center gap-2 text-[12px] text-ios-secondary">
           <span>{servings} personen</span>
           {timesCooked > 0 && <span>· {timesCooked}x gekookt</span>}
         </div>
@@ -44,7 +44,7 @@ export default function RecipeCard({
             {tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-green-50 px-2 py-0.5 text-xs text-green-700"
+                className="rounded-full bg-accent-light px-2 py-0.5 text-[11px] font-medium text-accent"
               >
                 {tag}
               </span>

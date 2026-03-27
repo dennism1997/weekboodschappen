@@ -51,10 +51,10 @@ export default function Recipes() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Recepten</h1>
+        <h1 className="text-[34px] font-bold text-ios-label">Recepten</h1>
         <button
           onClick={() => setShowScrape(true)}
-          className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+          className="rounded-[10px] bg-accent px-3.5 py-2 text-[13px] font-semibold text-white"
         >
           + Toevoegen
         </button>
@@ -65,15 +65,15 @@ export default function Recipes() {
         placeholder="Zoek recepten..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="mb-4 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+        className="mb-4 w-full rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[17px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
       />
 
       {loading ? (
-        <p className="text-center text-sm text-gray-400">Laden...</p>
+        <p className="text-center text-[13px] text-ios-secondary">Laden...</p>
       ) : recipes.length === 0 ? (
         <div className="py-12 text-center">
-          <p className="text-gray-500">Nog geen recepten.</p>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="text-[17px] text-ios-secondary">Nog geen recepten.</p>
+          <p className="mt-1 text-[13px] text-ios-tertiary">
             Voeg een recept toe via een URL.
           </p>
         </div>

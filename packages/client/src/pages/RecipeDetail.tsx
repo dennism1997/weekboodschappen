@@ -103,7 +103,7 @@ export default function RecipeDetail() {
     <div>
       <button
         onClick={() => navigate("/recipes")}
-        className="mb-3 text-sm text-green-600"
+        className="mb-3 text-[15px] text-accent"
       >
         &larr; Terug
       </button>
@@ -112,13 +112,13 @@ export default function RecipeDetail() {
         <img
           src={recipe.imageUrl}
           alt={recipe.title}
-          className="mb-4 h-48 w-full rounded-xl object-cover"
+          className="mb-4 h-48 w-full rounded-[12px] object-cover"
         />
       )}
 
-      <h1 className="text-xl font-bold text-gray-900">{recipe.title}</h1>
+      <h1 className="text-[34px] font-bold leading-tight text-ios-label">{recipe.title}</h1>
 
-      <div className="mt-2 flex gap-3 text-sm text-gray-500">
+      <div className="mt-2 flex gap-3 text-[13px] text-ios-secondary">
         <span>{recipe.servings} personen</span>
         {recipe.prepTimeMinutes && <span>{recipe.prepTimeMinutes} min prep</span>}
         {recipe.cookTimeMinutes && <span>{recipe.cookTimeMinutes} min koken</span>}
@@ -129,32 +129,34 @@ export default function RecipeDetail() {
           href={recipe.sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 block text-xs text-green-600 underline"
+          className="mt-2 block text-[13px] text-accent underline"
         >
           Bron bekijken
         </a>
       )}
 
-      <h2 className="mt-6 mb-2 text-lg font-semibold text-gray-900">Ingredienten</h2>
-      <ul className="space-y-1">
+      <p className="mt-6 mb-2 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Ingredienten</p>
+      <div className="overflow-hidden rounded-[12px] bg-white">
         {recipe.ingredients.map((ing, i) => (
-          <li key={i} className="flex justify-between rounded-lg bg-gray-50 px-3 py-2 text-sm">
-            <span>{ing.name}</span>
-            <span className="text-gray-500">
+          <div key={i} className={`flex min-h-[44px] items-center justify-between px-4 py-3 ${
+            i > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
+          }`}>
+            <span className="text-[17px] text-ios-label">{ing.name}</span>
+            <span className="text-[13px] text-ios-secondary">
               {ing.quantity} {ing.unit}
             </span>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
 
-      <h2 className="mt-6 mb-2 text-lg font-semibold text-gray-900">Bereiding</h2>
+      <p className="mt-6 mb-2 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Bereiding</p>
       <ol className="space-y-3">
         {recipe.instructions.map((step) => (
-          <li key={step.step} className="flex gap-3 text-sm">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-100 text-xs font-semibold text-green-700">
+          <li key={step.step} className="flex gap-3 text-[15px]">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-light text-[12px] font-semibold text-accent">
               {step.step}
             </span>
-            <span className="text-gray-700">{step.text}</span>
+            <span className="text-ios-label">{step.text}</span>
           </li>
         ))}
       </ol>
@@ -162,7 +164,7 @@ export default function RecipeDetail() {
       {added ? (
         <button
           onClick={() => navigate("/planner")}
-          className="mt-8 w-full rounded-lg bg-green-50 px-4 py-2 text-sm font-medium text-green-700 border border-green-200"
+          className="mt-8 w-full rounded-[14px] border border-accent bg-accent-light px-4 py-3 text-[15px] font-semibold text-accent"
         >
           ✓ Toegevoegd aan weekplan — Bekijk plan
         </button>
@@ -170,7 +172,7 @@ export default function RecipeDetail() {
         <button
           onClick={handleAddToPlan}
           disabled={adding}
-          className="mt-8 w-full rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+          className="mt-8 w-full rounded-[14px] bg-accent px-4 py-4 text-[17px] font-semibold text-white disabled:opacity-50"
         >
           {adding ? "Toevoegen..." : "Toevoegen aan weekplan"}
         </button>
@@ -178,7 +180,7 @@ export default function RecipeDetail() {
 
       <button
         onClick={handleDelete}
-        className="mt-3 w-full rounded-lg border border-red-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+        className="mt-3 w-full rounded-[14px] border border-ios-destructive px-4 py-3 text-[15px] font-medium text-ios-destructive"
       >
         Recept verwijderen
       </button>
