@@ -1,5 +1,4 @@
 import { Router } from "express";
-import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db/connection.js";
 import { recipe, weeklyPlanRecipe } from "../db/schema.js";
 import { eq, and, like } from "drizzle-orm";
@@ -8,8 +7,6 @@ import { scrapeRecipe } from "../services/scraper.js";
 import { categorizeBatchWithAI } from "../services/ai.js";
 import { categorizeIngredientSync } from "../utils/categories.js";
 import { validate, scrapeRecipeSchema } from "../validation/schemas.js";
-
-const ai = new Anthropic();
 
 const router = Router();
 router.use(requireAuth);
@@ -39,44 +36,11 @@ router.post("/scrape", validate(scrapeRecipeSchema), async (req, res) => {
       }
     }
 
-    // Clean up instructions with AI
-    let cleanedInstructions = scraped.instructions;
-    try {
-      const instructionTexts = scraped.instructions.map((s) => `${s.step}. ${s.text}`).join("\n");
-      const response = await ai.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 2048,
-        messages: [{
-          role: "user",
-          content: `Schoon de volgende receptinstructies op. Maak ze beknopt en duidelijk in het Nederlands.
-
-Regels:
-- Verwijder reclame, website-tekst, en overbodige zinnen
-- Splits te lange stappen op in kortere stappen
-- Houd de volgorde aan
-- Gebruik duidelijke, korte zinnen
-- Als er kopjes zijn (met **vet**), behoud die
-- Geef ALLEEN de opgeschoonde stappen terug als JSON array
-
-Instructies:
-${instructionTexts}
-
-Antwoord ALLEEN met geldige JSON:
-[{"step": 1, "text": "stap tekst"}, ...]`,
-        }],
-      });
-
-      const text = response.content[0].type === "text" ? response.content[0].text : "";
-      const jsonMatch = text.match(/\[[\s\S]*\]/);
-      if (jsonMatch) {
-        const parsed = JSON.parse(jsonMatch[0]) as Array<{ step: number; text: string }>;
-        if (parsed.length > 0) {
-          cleanedInstructions = parsed;
-        }
-      }
-    } catch {
-      // AI cleanup failed — keep original instructions
-    }
+    // Remove heading-only steps (e.g. "**Bereiding**", "**Voor de saus**")
+    let stepNum = 1;
+    const cleanedInstructions = scraped.instructions
+      .filter((s) => !(/^\*\*[^*]+\*\*$/.test(s.text.trim())))
+      .map((s) => ({ step: stepNum++, text: s.text }));
 
     // Save to database
     const id = crypto.randomUUID();
