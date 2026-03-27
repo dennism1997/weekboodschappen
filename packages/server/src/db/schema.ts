@@ -44,6 +44,7 @@ export const weeklyPlan = sqliteTable("weekly_plan", {
   id: text("id").primaryKey(),
   householdId: text("household_id").notNull(),
   weekStart: text("week_start").notNull(),
+  name: text("name"),
   status: text("status", {
     enum: ["planning", "shopping", "completed"],
   })

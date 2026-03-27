@@ -6,7 +6,7 @@ import {
   recipe,
   groceryList,
 } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { generateGroceryList } from "../services/lists.js";
 import { validate, addRecipeToPlanSchema } from "../validation/schemas.js";
@@ -31,6 +31,13 @@ function getCurrentWeekStart(): string {
   return monday.toISOString().split("T")[0];
 }
 
+function getWeekNumber(weekStart: string): number {
+  const date = new Date(weekStart);
+  const jan1 = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - jan1.getTime()) / 86400000);
+  return Math.ceil((days + jan1.getDay() + 1) / 7);
+}
+
 function getPlanWithRecipes(planId: string) {
   const plan = db.select().from(weeklyPlan).where(eq(weeklyPlan.id, planId)).get();
   if (!plan) return null;
@@ -51,6 +58,7 @@ function getPlanWithRecipes(planId: string) {
 
   return {
     ...plan,
+    displayName: plan.name || `Week ${getWeekNumber(plan.weekStart)}`,
     listId: list?.id || null,
     recipes: planRecipes.map((pr) => ({
       recipeId: pr.planRecipe.recipeId,
@@ -63,25 +71,34 @@ function getPlanWithRecipes(planId: string) {
   };
 }
 
+// GET / — List all plans for the household
+router.get("/", (req, res) => {
+  const householdId = req.user!.householdId;
+
+  const plans = db
+    .select()
+    .from(weeklyPlan)
+    .where(eq(weeklyPlan.householdId, householdId))
+    .orderBy(desc(weeklyPlan.weekStart))
+    .all();
+
+  const result = plans.map((p) => ({
+    id: p.id,
+    weekStart: p.weekStart,
+    name: p.name,
+    displayName: p.name || `Week ${getWeekNumber(p.weekStart)}`,
+    store: p.store,
+    status: p.status,
+    createdAt: p.createdAt,
+  }));
+
+  res.json(result);
+});
+
 // POST / — Create a weekly plan
 router.post("/", (req, res) => {
   const householdId = req.user!.householdId;
   const weekStart = getCurrentWeekStart();
-
-  const existing = db
-    .select()
-    .from(weeklyPlan)
-    .where(
-      and(eq(weeklyPlan.householdId, householdId), eq(weeklyPlan.weekStart, weekStart)),
-    )
-    .get();
-
-  if (existing) {
-    const result = getPlanWithRecipes(existing.id);
-    res.json(result);
-    return;
-  }
-
   const store = req.body.store ? normalizeStore(req.body.store) : "albert_heijn";
 
   const id = crypto.randomUUID();
@@ -93,12 +110,13 @@ router.post("/", (req, res) => {
   res.status(201).json(result);
 });
 
-// GET /current — Get this week's plan with recipes
+// GET /current — Get the most recent plan
 router.get("/current", (req, res) => {
   const householdId = req.user!.householdId;
   const weekStart = getCurrentWeekStart();
 
-  const plan = db
+  // Try current week first
+  let plan = db
     .select()
     .from(weeklyPlan)
     .where(
@@ -106,8 +124,18 @@ router.get("/current", (req, res) => {
     )
     .get();
 
+  // Fallback: most recent plan
   if (!plan) {
-    res.status(404).json({ error: "No plan found for this week" });
+    plan = db
+      .select()
+      .from(weeklyPlan)
+      .where(eq(weeklyPlan.householdId, householdId))
+      .orderBy(desc(weeklyPlan.weekStart))
+      .get();
+  }
+
+  if (!plan) {
+    res.status(404).json({ error: "No plan found" });
     return;
   }
 
@@ -134,9 +162,8 @@ router.get("/current/recommendations", async (req, res) => {
   const plan = db
     .select()
     .from(weeklyPlan)
-    .where(
-      and(eq(weeklyPlan.householdId, householdId), eq(weeklyPlan.weekStart, weekStart)),
-    )
+    .where(eq(weeklyPlan.householdId, householdId))
+    .orderBy(desc(weeklyPlan.weekStart))
     .get();
 
   const excludeIds: string[] = [];
@@ -178,7 +205,21 @@ router.get("/current/recommendations", async (req, res) => {
   res.json(fallback);
 });
 
-// PATCH /:id — Update plan fields (status, store)
+// GET /:id — Get a specific plan with recipes
+router.get("/:id", (req, res) => {
+  const householdId = req.user!.householdId;
+  const plan = db
+    .select()
+    .from(weeklyPlan)
+    .where(and(eq(weeklyPlan.id, req.params.id), eq(weeklyPlan.householdId, householdId)))
+    .get();
+
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+
+  res.json(getPlanWithRecipes(plan.id));
+});
+
+// PATCH /:id — Update plan fields (status, store, name)
 router.patch("/:id", (req, res) => {
   const householdId = req.user!.householdId;
   const plan = db
@@ -192,12 +233,34 @@ router.patch("/:id", (req, res) => {
   const updates: Record<string, any> = {};
   if (req.body.status) updates.status = req.body.status;
   if (req.body.store) updates.store = normalizeStore(req.body.store);
+  if (req.body.name !== undefined) updates.name = req.body.name || null;
 
   if (Object.keys(updates).length > 0) {
     db.update(weeklyPlan).set(updates).where(eq(weeklyPlan.id, plan.id)).run();
   }
 
   res.json(getPlanWithRecipes(plan.id));
+});
+
+// DELETE /:id — Delete a plan and its recipe links
+router.delete("/:id", (req, res) => {
+  const householdId = req.user!.householdId;
+  const plan = db
+    .select()
+    .from(weeklyPlan)
+    .where(and(eq(weeklyPlan.id, req.params.id), eq(weeklyPlan.householdId, householdId)))
+    .get();
+
+  if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+
+  db.delete(weeklyPlanRecipe)
+    .where(eq(weeklyPlanRecipe.weeklyPlanId, plan.id))
+    .run();
+  db.delete(weeklyPlan)
+    .where(eq(weeklyPlan.id, plan.id))
+    .run();
+
+  res.json({ ok: true });
 });
 
 // POST /:id/recipes — Add a recipe to the plan

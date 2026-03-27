@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark } from "lucide-react";
+import { Bookmark, Trash2, Pencil, Plus } from "lucide-react";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
@@ -25,9 +25,20 @@ interface PlanRecipe {
 interface Plan {
   id: string;
   weekStart: string;
+  name: string | null;
+  displayName: string;
   store: string;
   recipes: PlanRecipe[];
   listId: string | null;
+}
+
+interface PlanSummary {
+  id: string;
+  weekStart: string;
+  name: string | null;
+  displayName: string;
+  store: string;
+  status: string;
 }
 
 interface SearchResult {
@@ -39,12 +50,8 @@ interface SearchResult {
 const DAYS = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
 const STORES = ["Jumbo", "Albert Heijn"];
 
-function getWeekLabel(): string {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
+function getWeekLabel(weekStart: string): string {
+  const monday = new Date(weekStart);
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
   const fmt = (d: Date) =>
@@ -59,6 +66,14 @@ export default function MealPlanner() {
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [store, setStore] = useState("Jumbo");
+  const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+
+  // Plan rename
+  const [editingName, setEditingName] = useState(false);
+  const [nameInput, setNameInput] = useState("");
+
+  // Delete confirmation
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
@@ -69,19 +84,37 @@ export default function MealPlanner() {
   // Track which suggestions have been saved as recipes (index → recipeId)
   const [savedSuggestions, setSavedSuggestions] = useState<Record<number, string>>({});
 
-  const { data: plan = null, isLoading: loading } = useQuery({
-    queryKey: ["meal-plan"],
-    queryFn: () => apiFetch<Plan>("/plans/current"),
-    select(data) {
-      if (data.store && data.store !== store) setStore(data.store);
-      return data;
-    },
+  // Fetch all plans
+  const { data: allPlans = [] } = useQuery({
+    queryKey: ["all-plans"],
+    queryFn: () => apiFetch<PlanSummary[]>("/plans"),
+  });
+
+  // Auto-select the first plan on load
+  useEffect(() => {
+    if (allPlans.length > 0 && !selectedPlanId) {
+      setSelectedPlanId(allPlans[0].id);
+    }
+  }, [allPlans]);
+
+  // Fetch selected plan with recipes
+  const { data: currentPlan = null, isLoading: currentPlanLoading } = useQuery({
+    queryKey: ["meal-plan", selectedPlanId],
+    queryFn: () => apiFetch<Plan>(`/plans/${selectedPlanId}`),
+    enabled: !!selectedPlanId,
   });
 
   const { data: recommendations = [] } = useQuery({
     queryKey: ["meal-suggestions"],
     queryFn: () => apiFetch<Suggestion[]>("/plans/current/recommendations"),
   });
+
+  // Sync store with current plan
+  useEffect(() => {
+    if (currentPlan && currentPlan.store && currentPlan.store !== store) {
+      setStore(currentPlan.store);
+    }
+  }, [currentPlan]);
 
   // Debounce search query
   useEffect(() => {
@@ -104,17 +137,21 @@ export default function MealPlanner() {
     enabled: debouncedSearchQuery.length >= 2,
   });
 
-  const invalidatePlan = () => queryClient.invalidateQueries({ queryKey: ["meal-plan"] });
+  const invalidatePlans = () => {
+    queryClient.invalidateQueries({ queryKey: ["meal-plan", selectedPlanId] });
+    queryClient.invalidateQueries({ queryKey: ["all-plans"] });
+  };
   const invalidateSuggestions = () => queryClient.invalidateQueries({ queryKey: ["meal-suggestions"] });
 
   const createPlan = async () => {
     setCreating(true);
     try {
-      await apiFetch<Plan>("/plans", {
+      const newPlan = await apiFetch<Plan>("/plans", {
         method: "POST",
         body: JSON.stringify({ store }),
       });
-      await invalidatePlan();
+      setSelectedPlanId(newPlan.id);
+      await invalidatePlans();
     } catch {
       // ignore
     } finally {
@@ -122,10 +159,36 @@ export default function MealPlanner() {
     }
   };
 
-  const addRecipeToPlan = async (recipe: SearchResult) => {
-    if (!plan) return;
+  const deletePlan = async () => {
+    if (!currentPlan) return;
     try {
-      await apiFetch(`/plans/${plan.id}/recipes`, {
+      await apiFetch(`/plans/${currentPlan.id}`, { method: "DELETE" });
+      setSelectedPlanId(null);
+      setConfirmDelete(false);
+      await invalidatePlans();
+    } catch {
+      // ignore
+    }
+  };
+
+  const renamePlan = async () => {
+    if (!currentPlan) return;
+    try {
+      await apiFetch(`/plans/${currentPlan.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name: nameInput.trim() }),
+      });
+      setEditingName(false);
+      await invalidatePlans();
+    } catch {
+      // ignore
+    }
+  };
+
+  const addRecipeToPlan = async (recipe: SearchResult) => {
+    if (!currentPlan) return;
+    try {
+      await apiFetch(`/plans/${currentPlan.id}/recipes`, {
         method: "POST",
         body: JSON.stringify({
           recipeId: recipe.id,
@@ -135,7 +198,7 @@ export default function MealPlanner() {
       setShowSearch(false);
       setSearchQuery("");
       setDebouncedSearchQuery("");
-      await invalidatePlan();
+      await invalidatePlans();
       await invalidateSuggestions();
     } catch {
       // ignore
@@ -159,7 +222,7 @@ export default function MealPlanner() {
   };
 
   const addSuggestionToPlan = async (rec: Suggestion, index: number) => {
-    if (!plan) return;
+    if (!currentPlan) return;
     let recipeId: string | undefined;
 
     if (rec.isExisting && rec.existingRecipeId) {
@@ -188,25 +251,25 @@ export default function MealPlanner() {
     recipeId: string,
     updates: { servings?: number; day?: string | null }
   ) => {
-    if (!plan) return;
+    if (!currentPlan) return;
     try {
-      await apiFetch(`/plans/${plan.id}/recipes/${recipeId}`, {
+      await apiFetch(`/plans/${currentPlan.id}/recipes/${recipeId}`, {
         method: "PATCH",
         body: JSON.stringify(updates),
       });
-      await invalidatePlan();
+      await invalidatePlans();
     } catch {
       // ignore
     }
   };
 
   const removeRecipeFromPlan = async (recipeId: string) => {
-    if (!plan) return;
+    if (!currentPlan) return;
     try {
-      await apiFetch(`/plans/${plan.id}/recipes/${recipeId}`, {
+      await apiFetch(`/plans/${currentPlan.id}/recipes/${recipeId}`, {
         method: "DELETE",
       });
-      await invalidatePlan();
+      await invalidatePlans();
       await invalidateSuggestions();
     } catch {
       // ignore
@@ -214,10 +277,10 @@ export default function MealPlanner() {
   };
 
   const generateList = async () => {
-    if (!plan) return;
+    if (!currentPlan) return;
     setGenerating(true);
     try {
-      await apiFetch(`/plans/${plan.id}/generate-list`, {
+      await apiFetch(`/plans/${currentPlan.id}/generate-list`, {
         method: "POST",
         body: JSON.stringify({ store }),
       });
@@ -231,9 +294,9 @@ export default function MealPlanner() {
 
   const updateStore = async (newStore: string) => {
     setStore(newStore);
-    if (plan) {
+    if (currentPlan) {
       try {
-        await apiFetch(`/plans/${plan.id}`, {
+        await apiFetch(`/plans/${currentPlan.id}`, {
           method: "PATCH",
           body: JSON.stringify({ store: newStore }),
         });
@@ -243,7 +306,7 @@ export default function MealPlanner() {
     }
   };
 
-  if (loading) {
+  if (currentPlanLoading) {
     return <p className="py-12 text-center text-[13px] text-ios-secondary">Laden...</p>;
   }
 
@@ -251,8 +314,35 @@ export default function MealPlanner() {
     <div>
       <div className="mb-4">
         <h1 className="text-[34px] font-bold leading-tight text-ios-label">Weekplanner</h1>
-        <p className="text-[13px] text-ios-secondary">{getWeekLabel()}</p>
       </div>
+
+      {/* Plan selector */}
+      {allPlans.length > 0 && (
+        <div className="mb-4">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            {allPlans.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setSelectedPlanId(p.id)}
+                className={`shrink-0 rounded-[10px] px-3 py-1.5 text-[13px] font-semibold transition ${
+                  currentPlan?.id === p.id
+                    ? "bg-accent text-white"
+                    : "bg-white text-ios-label"
+                }`}
+              >
+                {p.displayName}
+              </button>
+            ))}
+            <button
+              onClick={createPlan}
+              disabled={creating}
+              className="shrink-0 rounded-[10px] bg-white px-3 py-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
+            >
+              <Plus className="inline h-3.5 w-3.5" /> Nieuw
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Store selector — iOS segmented control */}
       <div className="mb-5 flex rounded-[9px] bg-ios-segmented-bg p-0.5">
@@ -271,7 +361,7 @@ export default function MealPlanner() {
         ))}
       </div>
 
-      {!plan ? (
+      {!currentPlan ? (
         <>
           <div className="py-12 text-center">
             <p className="text-[17px] text-ios-secondary">Nog geen weekplan.</p>
@@ -334,8 +424,73 @@ export default function MealPlanner() {
         </>
       ) : (
         <>
+          {/* Plan header with name, date, and actions */}
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex-1">
+              {editingName ? (
+                <input
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onBlur={renamePlan}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") renamePlan();
+                    if (e.key === "Escape") setEditingName(false);
+                  }}
+                  autoFocus
+                  placeholder={currentPlan.displayName}
+                  className="w-full rounded-[8px] border border-ios-separator bg-white px-3 py-1.5 text-[17px] font-semibold text-ios-label focus:border-accent focus:outline-none"
+                />
+              ) : (
+                <div>
+                  <button
+                    onClick={() => {
+                      setNameInput(currentPlan.name || "");
+                      setEditingName(true);
+                    }}
+                    className="flex items-center gap-1.5 text-[17px] font-semibold text-ios-label"
+                  >
+                    {currentPlan.displayName}
+                    <Pencil className="h-3.5 w-3.5 text-ios-tertiary" />
+                  </button>
+                  <p className="text-[13px] text-ios-secondary">{getWeekLabel(currentPlan.weekStart)}</p>
+                </div>
+              )}
+            </div>
+            {!editingName && (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="rounded-[8px] p-2 text-ios-destructive"
+                title="Plan verwijderen"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Delete confirmation */}
+          {confirmDelete && (
+            <div className="mb-4 rounded-[12px] border border-ios-destructive/30 bg-ios-destructive/5 p-4">
+              <p className="text-[15px] text-ios-label">Weet je zeker dat je dit plan wilt verwijderen?</p>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={deletePlan}
+                  className="rounded-[8px] bg-ios-destructive px-4 py-2 text-[13px] font-semibold text-white"
+                >
+                  Verwijderen
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="rounded-[8px] bg-ios-grouped-bg px-4 py-2 text-[13px] font-semibold text-ios-label"
+                >
+                  Annuleren
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Recipes in plan */}
-          {plan.recipes.length === 0 ? (
+          {currentPlan.recipes.length === 0 ? (
             <div className="rounded-[12px] border-2 border-dashed border-ios-tertiary py-8 text-center">
               <p className="text-[15px] text-ios-secondary">
                 Nog geen recepten toegevoegd.
@@ -343,7 +498,7 @@ export default function MealPlanner() {
             </div>
           ) : (
             <div className="mb-4 overflow-hidden rounded-[12px] bg-white">
-              {plan.recipes.map((r, idx) => (
+              {currentPlan.recipes.map((r, idx) => (
                 <div
                   key={r.recipeId}
                   className={`flex min-h-[44px] items-center justify-between px-4 py-3 ${
@@ -452,7 +607,7 @@ export default function MealPlanner() {
           )}
 
           {/* Generate list button */}
-          {plan.recipes.length > 0 && (
+          {currentPlan.recipes.length > 0 && (
             <button
               onClick={generateList}
               disabled={generating}
@@ -469,7 +624,7 @@ export default function MealPlanner() {
               <div className="space-y-2">
                 {recommendations.map((rec, i) => {
                   const isSaved = rec.isExisting || !!savedSuggestions[i];
-                  const alreadyInPlan = plan.recipes.some(
+                  const alreadyInPlan = currentPlan.recipes.some(
                     (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[i]
                   );
 

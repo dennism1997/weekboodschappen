@@ -1,0 +1,1 @@
+ALTER TABLE `weekly_plan` ADD `name` text;
