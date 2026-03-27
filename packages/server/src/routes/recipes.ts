@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db } from "../db/connection.js";
-import { recipe } from "../db/schema.js";
+import { recipe, weeklyPlanRecipe } from "../db/schema.js";
 import { eq, and, like } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { scrapeRecipe } from "../services/scraper.js";
@@ -205,6 +205,8 @@ router.delete("/:id", (req, res) => {
     return;
   }
 
+  // Remove from any weekly plans first
+  db.delete(weeklyPlanRecipe).where(eq(weeklyPlanRecipe.recipeId, req.params.id)).run();
   db.delete(recipe).where(eq(recipe.id, req.params.id)).run();
   res.json({ ok: true });
 });

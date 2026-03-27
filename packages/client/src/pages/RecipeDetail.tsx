@@ -40,6 +40,7 @@ export default function RecipeDetail() {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
   const [added, setAdded] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: recipe = null, isLoading: loading } = useQuery({
     queryKey: ["recipe", id],
@@ -91,9 +92,13 @@ export default function RecipeDetail() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Weet je zeker dat je dit recept wilt verwijderen?")) return;
-    await apiFetch(`/recipes/${id}`, { method: "DELETE" });
-    navigate("/recipes");
+    try {
+      await apiFetch(`/recipes/${id}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["recipes"] });
+      navigate("/recipes");
+    } catch (err) {
+      console.error("Delete recipe failed:", err);
+    }
   };
 
   return (
@@ -175,12 +180,32 @@ export default function RecipeDetail() {
         </button>
       )}
 
-      <button
-        onClick={handleDelete}
-        className="mt-3 w-full rounded-[14px] border border-ios-destructive px-4 py-3 text-[15px] font-medium text-ios-destructive"
-      >
-        Recept verwijderen
-      </button>
+      {confirmDelete ? (
+        <div className="mt-3 rounded-[12px] border border-ios-destructive/30 bg-ios-destructive/5 p-4">
+          <p className="text-[15px] text-ios-label">Weet je zeker dat je dit recept wilt verwijderen?</p>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={handleDelete}
+              className="rounded-[8px] bg-ios-destructive px-4 py-2 text-[13px] font-semibold text-white"
+            >
+              Verwijderen
+            </button>
+            <button
+              onClick={() => setConfirmDelete(false)}
+              className="rounded-[8px] bg-ios-grouped-bg px-4 py-2 text-[13px] font-semibold text-ios-label"
+            >
+              Annuleren
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setConfirmDelete(true)}
+          className="mt-3 w-full rounded-[14px] border border-ios-destructive px-4 py-3 text-[15px] font-medium text-ios-destructive"
+        >
+          Recept verwijderen
+        </button>
+      )}
     </div>
   );
 }
