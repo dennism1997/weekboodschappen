@@ -43,13 +43,13 @@ export function initScheduler(): void {
     console.log("Discounts are fresh, skipping startup refresh.");
   }
 
-  // Schedule weekly refresh: Monday at 06:00
-  schedule("0 6 * * 1", () => {
-    console.log("Running scheduled discount refresh (Monday 06:00)...");
+  // Schedule daily refresh at 06:00
+  schedule("0 6 * * *", () => {
+    console.log("Running scheduled discount refresh (daily 06:00)...");
     refreshAllDiscounts().catch((err) => {
       console.error("Scheduled discount refresh failed:", err);
     });
   });
 
-  console.log("Discount scheduler initialized (cron: Monday 06:00).");
+  console.log("Discount scheduler initialized (cron: daily 06:00).");
 }
