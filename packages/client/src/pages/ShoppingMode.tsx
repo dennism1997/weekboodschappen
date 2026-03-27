@@ -8,6 +8,7 @@ interface DiscountInfo {
   originalPrice: number;
   salePrice: number;
 }
+import { useSocket, SocketEvent } from "../hooks/useSocket";
 
 interface GroceryItem {
   id: string;
@@ -35,6 +36,7 @@ export default function ShoppingMode() {
   const [list, setList] = useState<GroceryListData | null>(null);
   const [loading, setLoading] = useState(true);
   const [addText, setAddText] = useState("");
+  const [finalizing, setFinalizing] = useState(false);
 
   const fetchList = useCallback(async () => {
     try {
@@ -252,12 +254,24 @@ export default function ShoppingMode() {
           </div>
 
           {/* Finish button */}
-          {done === total && total > 0 && (
+          {total > 0 && (
             <button
-              onClick={() => navigate("/list")}
-              className="w-full rounded-lg bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700"
+              onClick={async () => {
+                if (!list) return;
+                setFinalizing(true);
+                try {
+                  await apiFetch(`/lists/${list.id}/finalize`, {
+                    method: "POST",
+                  });
+                  navigate("/list");
+                } catch {
+                  setFinalizing(false);
+                }
+              }}
+              disabled={finalizing}
+              className="w-full rounded-lg bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
             >
-              Klaar met winkelen
+              {finalizing ? "Afronden..." : "Klaar met winkelen"}
             </button>
           )}
         </div>

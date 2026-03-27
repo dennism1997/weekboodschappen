@@ -7,6 +7,7 @@ import {
 } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
+import { recordShoppingTrip } from "../services/learning.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -220,6 +221,43 @@ router.post("/:id/items", (req, res) => {
 
   const created = db.select().from(groceryItem).where(eq(groceryItem.id, id)).get();
   res.status(201).json(created);
+});
+
+// POST /:id/finalize — Record shopping trip and mark plan as completed
+router.post("/:id/finalize", (req, res) => {
+  const householdId = req.user!.householdId;
+  const listId = req.params.id;
+
+  // Verify list ownership
+  const list = db
+    .select()
+    .from(groceryList)
+    .where(eq(groceryList.id, listId))
+    .get();
+
+  if (!list) {
+    res.status(404).json({ error: "List not found" });
+    return;
+  }
+
+  const plan = db
+    .select()
+    .from(weeklyPlan)
+    .where(
+      and(
+        eq(weeklyPlan.id, list.weeklyPlanId),
+        eq(weeklyPlan.householdId, householdId),
+      ),
+    )
+    .get();
+
+  if (!plan) {
+    res.status(404).json({ error: "List not found" });
+    return;
+  }
+
+  const itemsRecorded = recordShoppingTrip(listId, householdId);
+  res.json({ ok: true, itemsRecorded });
 });
 
 export default router;

@@ -1,20 +1,121 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "../api/client";
 import { authClient } from "../lib/auth-client";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import type { DragEndEvent } from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface Member {
   id: string;
   name: string;
 }
 
+interface StoreConfig {
+  id: string;
+  householdId: string;
+  store: string;
+  categoryOrder: string[];
+}
+
 const STORES = ["Jumbo", "Albert Heijn"];
+
+const DEFAULT_CATEGORIES = [
+  "Groente & Fruit",
+  "Brood & Bakkerij",
+  "Zuivel & Eieren",
+  "Kaas",
+  "Vlees & Vis",
+  "Vega & Vegan",
+  "Diepvries",
+  "Pasta, Rijst & Wereldkeuken",
+  "Soepen, Sauzen & Kruiden",
+  "Conserven & Houdbaar",
+  "Chips, Noten & Snacks",
+  "Snoep & Chocolade",
+  "Koek & Gebak",
+  "Ontbijtgranen & Beleg",
+  "Dranken",
+  "Koffie & Thee",
+  "Huishouden & Schoonmaak",
+  "Persoonlijke Verzorging",
+  "Baby & Kind",
+  "Overig",
+];
+
+function storeToApiName(displayName: string): string {
+  if (displayName === "Albert Heijn") return "albert_heijn";
+  return displayName.toLowerCase();
+}
+
+function SortableItem({ id }: { id: string }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 rounded-md border px-3 py-2 text-sm ${
+        isDragging
+          ? "z-10 border-green-300 bg-green-50 shadow-md"
+          : "border-gray-200 bg-white"
+      }`}
+    >
+      <span
+        {...attributes}
+        {...listeners}
+        className="cursor-grab touch-none text-gray-400 select-none"
+        aria-label="Versleep"
+      >
+        ≡
+      </span>
+      <span className="text-gray-700">{id}</span>
+    </li>
+  );
+}
 
 export default function Settings() {
   const { user, household, signOut } = useAuth();
   const [members, setMembers] = useState<Member[]>([]);
   const [store, setStore] = useState("Jumbo");
   const [copied, setCopied] = useState(false);
+  const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [storeConfigs, setStoreConfigs] = useState<StoreConfig[]>([]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   useEffect(() => {
     async function fetchMembers() {
@@ -35,6 +136,68 @@ export default function Settings() {
     }
     fetchMembers();
   }, [household]);
+
+  // Fetch store configs on mount
+  useEffect(() => {
+    async function fetchStoreConfigs() {
+      try {
+        const configs = await apiFetch<StoreConfig[]>("/stores/config");
+        setStoreConfigs(configs);
+      } catch {
+        // ignore
+      }
+    }
+    fetchStoreConfigs();
+  }, []);
+
+  // Update categories when store or configs change
+  useEffect(() => {
+    const apiName = storeToApiName(store);
+    const config = storeConfigs.find((c) => c.store === apiName);
+    if (config && config.categoryOrder.length > 0) {
+      setCategories(config.categoryOrder);
+    } else {
+      setCategories(DEFAULT_CATEGORIES);
+    }
+  }, [store, storeConfigs]);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      setCategories((prev) => {
+        const oldIndex = prev.indexOf(active.id as string);
+        const newIndex = prev.indexOf(over.id as string);
+        const newOrder = arrayMove(prev, oldIndex, newIndex);
+
+        // Save to server
+        const apiName = storeToApiName(store);
+        apiFetch(`/stores/config/${apiName}`, {
+          method: "PUT",
+          body: JSON.stringify({ categoryOrder: newOrder }),
+        }).catch(() => {
+          // ignore
+        });
+
+        return newOrder;
+      });
+    },
+    [store],
+  );
+
+  const resetCategoryOrder = async () => {
+    setCategories(DEFAULT_CATEGORIES);
+    const apiName = storeToApiName(store);
+    try {
+      await apiFetch(`/stores/config/${apiName}`, {
+        method: "PUT",
+        body: JSON.stringify({ categoryOrder: DEFAULT_CATEGORIES }),
+      });
+    } catch {
+      // ignore
+    }
+  };
 
   const updateStore = async (newStore: string) => {
     setStore(newStore);
@@ -148,11 +311,39 @@ export default function Settings() {
         )}
       </section>
 
-      {/* Category ordering placeholder */}
-      <section className="mb-6 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
-        <p className="text-center text-sm text-gray-400">
-          Binnenkort: categorievolgorde aanpassen
+      {/* Category ordering */}
+      <section className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-gray-700">
+            Categorievolgorde
+          </h2>
+          <button
+            onClick={resetCategoryOrder}
+            className="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-200"
+          >
+            Reset
+          </button>
+        </div>
+        <p className="mb-3 text-xs text-gray-400">
+          Sleep categorie&euml;n om de volgorde aan te passen voor{" "}
+          <span className="font-medium text-gray-600">{store}</span>.
         </p>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={categories}
+            strategy={verticalListSortingStrategy}
+          >
+            <ul className="space-y-1">
+              {categories.map((category) => (
+                <SortableItem key={category} id={category} />
+              ))}
+            </ul>
+          </SortableContext>
+        </DndContext>
       </section>
 
       {/* Logout */}
