@@ -95,10 +95,25 @@ router.get("/", (req, res) => {
   res.json(result);
 });
 
-// POST / — Create a weekly plan
+// POST / — Create a weekly plan (one per week)
 router.post("/", (req, res) => {
   const householdId = req.user!.householdId;
   const weekStart = getCurrentWeekStart();
+
+  // Check if a plan for this week already exists
+  const existing = db
+    .select()
+    .from(weeklyPlan)
+    .where(
+      and(eq(weeklyPlan.householdId, householdId), eq(weeklyPlan.weekStart, weekStart)),
+    )
+    .get();
+
+  if (existing) {
+    res.json(getPlanWithRecipes(existing.id));
+    return;
+  }
+
   const store = req.body.store ? normalizeStore(req.body.store) : "albert_heijn";
 
   const id = crypto.randomUUID();
