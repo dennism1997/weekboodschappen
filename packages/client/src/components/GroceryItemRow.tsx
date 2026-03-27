@@ -1,6 +1,7 @@
 import DiscountBadge from "./DiscountBadge";
 
 interface DiscountInfo {
+  store?: string;
   percentage: number;
   originalPrice: number;
   salePrice: number;

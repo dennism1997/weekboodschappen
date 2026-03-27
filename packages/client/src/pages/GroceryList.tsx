@@ -6,6 +6,7 @@ import CategoryGroup from "../components/CategoryGroup";
 import GroceryItemRow from "../components/GroceryItemRow";
 
 interface DiscountInfo {
+  store?: string;
   percentage: number;
   originalPrice: number;
   salePrice: number;
