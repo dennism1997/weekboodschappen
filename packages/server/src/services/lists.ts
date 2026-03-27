@@ -10,6 +10,7 @@ import {
 } from "../db/schema.js";
 import { eq, and } from "drizzle-orm";
 import { mergeQuantities, type MergeableItem } from "../utils/units.js";
+import { matchDiscountsToIngredients } from "./discounts.js";
 
 /**
  * Generate a complete grocery list for a weekly plan.
@@ -154,7 +155,40 @@ export function generateGroceryList(planId: string, householdId: string) {
       .run();
   }
 
-  // 9. Return the complete list
+  // 9. Match discounts to grocery items
+  try {
+    const itemNames = sortedItems.map((item) => item.name);
+    const discountMatches = matchDiscountsToIngredients(itemNames, plan.store);
+
+    // Update items that have a matching discount
+    const insertedItems = db
+      .select()
+      .from(groceryItem)
+      .where(eq(groceryItem.groceryListId, listId))
+      .all();
+
+    for (const item of insertedItems) {
+      const match = discountMatches[item.name];
+      if (match) {
+        db.update(groceryItem)
+          .set({
+            discountInfo: {
+              store: match.store,
+              percentage: match.percentage,
+              originalPrice: match.originalPrice,
+              salePrice: match.salePrice,
+            },
+          })
+          .where(eq(groceryItem.id, item.id))
+          .run();
+      }
+    }
+  } catch (err) {
+    // Discount matching is non-critical — log and continue
+    console.error("Failed to match discounts to grocery items:", err);
+  }
+
+  // 10. Return the complete list
   const list = db
     .select()
     .from(groceryList)

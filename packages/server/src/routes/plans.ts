@@ -10,6 +10,7 @@ import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { generateGroceryList } from "../services/lists.js";
 import { validate, addRecipeToPlanSchema } from "../validation/schemas.js";
+import { getRecommendations } from "../services/recommendations.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -113,11 +114,23 @@ router.get("/current", (req, res) => {
   res.json(getPlanWithRecipes(plan.id));
 });
 
-// GET /current/recommendations — Get recipe recommendations for the current plan
-router.get("/current/recommendations", (req, res) => {
+// GET /current/recommendations — Get AI-powered recipe recommendations
+router.get("/current/recommendations", async (req, res) => {
   const householdId = req.user!.householdId;
   const weekStart = getCurrentWeekStart();
 
+  try {
+    const suggestions = await getRecommendations(householdId, weekStart);
+
+    if (suggestions.length > 0) {
+      res.json(suggestions);
+      return;
+    }
+  } catch {
+    // AI call failed — fall through to recency-based fallback
+  }
+
+  // Fallback: recency-based recommendations
   const plan = db
     .select()
     .from(weeklyPlan)
@@ -126,7 +139,6 @@ router.get("/current/recommendations", (req, res) => {
     )
     .get();
 
-  // Get recipe IDs already in the plan
   const excludeIds: string[] = [];
   if (plan) {
     const planRecipes = db
@@ -137,19 +149,16 @@ router.get("/current/recommendations", (req, res) => {
     excludeIds.push(...planRecipes.map((pr) => pr.recipeId));
   }
 
-  // Get all household recipes, sorted by least recently cooked
   let allRecipes = db
     .select()
     .from(recipe)
     .where(eq(recipe.householdId, householdId))
     .all();
 
-  // Exclude recipes already in the plan
   if (excludeIds.length > 0) {
     allRecipes = allRecipes.filter((r) => !excludeIds.includes(r.id));
   }
 
-  // Sort: never cooked first, then by oldest lastCookedAt
   allRecipes.sort((a, b) => {
     if (!a.lastCookedAt && b.lastCookedAt) return -1;
     if (a.lastCookedAt && !b.lastCookedAt) return 1;
@@ -157,18 +166,16 @@ router.get("/current/recommendations", (req, res) => {
     return a.lastCookedAt!.localeCompare(b.lastCookedAt!);
   });
 
-  // Return top 6 recommendations
-  const recommendations = allRecipes.slice(0, 6).map((r) => ({
-    id: r.id,
+  const fallback = allRecipes.slice(0, 6).map((r) => ({
     title: r.title,
-    imageUrl: r.imageUrl,
-    servings: r.servings,
-    tags: r.tags,
-    timesCooked: r.timesCooked,
-    lastCookedAt: r.lastCookedAt,
+    description: "",
+    ingredients: [],
+    discountMatches: [],
+    isExisting: true,
+    existingRecipeId: r.id,
   }));
 
-  res.json(recommendations);
+  res.json(fallback);
 });
 
 // PATCH /:id — Update plan fields (status, store)
@@ -194,7 +201,7 @@ router.patch("/:id", (req, res) => {
 });
 
 // POST /:id/recipes — Add a recipe to the plan
-router.post("/:id/recipes", (req, res) => {
+router.post("/:id/recipes", validate(addRecipeToPlanSchema), (req: any, res: any) => {
   const householdId = req.user!.householdId;
   const plan = db
     .select()

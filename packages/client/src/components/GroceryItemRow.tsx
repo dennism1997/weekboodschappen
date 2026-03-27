@@ -1,3 +1,11 @@
+import DiscountBadge from "./DiscountBadge";
+
+interface DiscountInfo {
+  percentage: number;
+  originalPrice: number;
+  salePrice: number;
+}
+
 interface GroceryItemRowProps {
   id: string;
   name: string;
@@ -5,6 +13,7 @@ interface GroceryItemRowProps {
   unit: string;
   source: "recept" | "basis" | "handmatig";
   checked: boolean;
+  discountInfo?: DiscountInfo | null;
   onToggle: (id: string) => void;
 }
 
@@ -21,6 +30,7 @@ export default function GroceryItemRow({
   unit,
   source,
   checked,
+  discountInfo,
   onToggle,
 }: GroceryItemRowProps) {
   return (
@@ -46,6 +56,7 @@ export default function GroceryItemRow({
           {name}
         </span>
       </div>
+      <DiscountBadge discountInfo={discountInfo ?? null} />
       <span className={`text-xs ${checked ? "text-gray-300 line-through" : "text-gray-500"}`}>
         {quantity} {unit}
       </span>

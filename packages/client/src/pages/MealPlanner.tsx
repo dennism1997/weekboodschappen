@@ -3,14 +3,14 @@ import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
-interface Recommendation {
-  id: string;
+interface Suggestion {
   title: string;
-  imageUrl: string | null;
-  servings: number;
-  tags: string[];
-  timesCooked: number;
-  lastCookedAt: string | null;
+  description: string;
+  ingredients: string[];
+  discountMatches: string[];
+  isExisting: boolean;
+  existingRecipeId?: string;
+  recipeUrl?: string;
 }
 
 interface PlanRecipe {
@@ -58,19 +58,19 @@ export default function MealPlanner() {
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [store, setStore] = useState("Jumbo");
-  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [recommendations, setSuggestions] = useState<Suggestion[]>([]);
 
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [showSearch, setShowSearch] = useState(false);
 
-  const fetchRecommendations = useCallback(async () => {
+  const fetchSuggestions = useCallback(async () => {
     try {
-      const data = await apiFetch<Recommendation[]>("/plans/current/recommendations");
-      setRecommendations(data);
+      const data = await apiFetch<Suggestion[]>("/plans/current/recommendations");
+      setSuggestions(data);
     } catch {
-      setRecommendations([]);
+      setSuggestions([]);
     }
   }, []);
 
@@ -88,8 +88,8 @@ export default function MealPlanner() {
   }, []);
 
   useEffect(() => {
-    fetchPlan().then(() => fetchRecommendations());
-  }, [fetchPlan, fetchRecommendations]);
+    fetchPlan().then(() => fetchSuggestions());
+  }, [fetchPlan, fetchSuggestions]);
 
   // Store preference is set when the plan is fetched or when the user selects one
 
@@ -149,14 +149,16 @@ export default function MealPlanner() {
       setSearchQuery("");
       setSearchResults([]);
       await fetchPlan();
-      await fetchRecommendations();
+      await fetchSuggestions();
     } catch {
       // ignore
     }
   };
 
-  const addRecommendationToPlan = async (rec: Recommendation) => {
-    await addRecipeToPlan({ id: rec.id, title: rec.title, servings: rec.servings });
+  const addSuggestionToPlan = async (rec: Suggestion) => {
+    if (rec.isExisting && rec.existingRecipeId) {
+      await addRecipeToPlan({ id: rec.existingRecipeId, title: rec.title, servings: 4 });
+    }
   };
 
   const updateRecipeInPlan = async (
@@ -182,7 +184,7 @@ export default function MealPlanner() {
         method: "DELETE",
       });
       await fetchPlan();
-      await fetchRecommendations();
+      await fetchSuggestions();
     } catch {
       // ignore
     }
@@ -267,27 +269,26 @@ export default function MealPlanner() {
           {recommendations.length > 0 && (
             <div className="mt-6">
               <h2 className="mb-3 text-sm font-semibold text-gray-700">Suggesties</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {recommendations.map((rec) => (
-                  <button
-                    key={rec.id}
-                    onClick={() => navigate(`/recipes/${rec.id}`)}
-                    className="flex flex-col rounded-lg border border-gray-200 bg-white p-2 text-left shadow-sm hover:border-green-400 transition"
+              <div className="space-y-2">
+                {recommendations.map((rec, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
                   >
-                    {rec.imageUrl && (
-                      <img
-                        src={rec.imageUrl}
-                        alt={rec.title}
-                        className="mb-2 h-20 w-full rounded object-cover"
-                      />
+                    <p className="text-sm font-medium text-gray-900">{rec.title}</p>
+                    {rec.description && (
+                      <p className="mt-1 text-xs text-gray-500">{rec.description}</p>
                     )}
-                    <span className="text-xs font-medium text-gray-900 line-clamp-2">
-                      {rec.title}
-                    </span>
-                    <span className="mt-1 text-[10px] text-gray-400">
-                      {rec.servings} pers.
-                    </span>
-                  </button>
+                    {rec.discountMatches.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-1">
+                        {rec.discountMatches.map((d, j) => (
+                          <span key={j} className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                            korting: {d}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -420,34 +421,42 @@ export default function MealPlanner() {
             </button>
           )}
 
-          {/* Recommendations */}
+          {/* Suggestions */}
           {recommendations.length > 0 && (
             <div className="mt-6">
               <h2 className="mb-3 text-sm font-semibold text-gray-700">Suggesties</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {recommendations.map((rec) => (
-                  <button
-                    key={rec.id}
-                    onClick={() => addRecommendationToPlan(rec)}
-                    className="flex flex-col rounded-lg border border-gray-200 bg-white p-2 text-left shadow-sm hover:border-green-400 transition"
+              <div className="space-y-2">
+                {recommendations.map((rec, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
                   >
-                    {rec.imageUrl && (
-                      <img
-                        src={rec.imageUrl}
-                        alt={rec.title}
-                        className="mb-2 h-20 w-full rounded object-cover"
-                      />
-                    )}
-                    <span className="text-xs font-medium text-gray-900 line-clamp-2">
-                      {rec.title}
-                    </span>
-                    <span className="mt-1 text-[10px] text-gray-400">
-                      {rec.servings} pers.
-                      {rec.timesCooked > 0
-                        ? ` · ${rec.timesCooked}x gekookt`
-                        : " · Nog niet gekookt"}
-                    </span>
-                  </button>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-gray-900">{rec.title}</p>
+                        {rec.description && (
+                          <p className="mt-0.5 text-xs text-gray-500">{rec.description}</p>
+                        )}
+                        {rec.discountMatches.length > 0 && (
+                          <div className="mt-1.5 flex flex-wrap gap-1">
+                            {rec.discountMatches.map((d, j) => (
+                              <span key={j} className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                                korting: {d}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {rec.isExisting && rec.existingRecipeId && (
+                        <button
+                          onClick={() => addSuggestionToPlan(rec)}
+                          className="ml-2 shrink-0 rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                        >
+                          + Plan
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
