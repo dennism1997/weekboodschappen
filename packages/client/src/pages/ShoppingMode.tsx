@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
+import { useOfflineQueue } from "../hooks/useOfflineQueue";
 
 interface GroceryItem {
   id: string;
@@ -28,6 +29,7 @@ export default function ShoppingMode() {
   const [loading, setLoading] = useState(true);
   const [addText, setAddText] = useState("");
   const [finalizing, setFinalizing] = useState(false);
+  const { enqueue, isOnline } = useOfflineQueue();
 
   const fetchList = useCallback(async () => {
     try {
@@ -57,11 +59,14 @@ export default function ShoppingMode() {
         i.id === itemId ? { ...i, checked: !i.checked } : i
       ),
     });
+    const url = `/lists/${list.id}/items/${itemId}`;
+    const body = JSON.stringify({ checked: !item.checked });
+    if (!isOnline) {
+      enqueue(url, "PATCH", body);
+      return;
+    }
     try {
-      await apiFetch(`/lists/${list.id}/items/${itemId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ checked: !item.checked }),
-      });
+      await apiFetch(url, { method: "PATCH", body });
     } catch {
       await fetchList();
     }
@@ -69,16 +74,31 @@ export default function ShoppingMode() {
 
   const addItem = async () => {
     if (!list || !addText.trim()) return;
+    const url = `/lists/${list.id}/items`;
+    const body = JSON.stringify({
+      name: addText.trim(),
+      quantity: 1,
+      unit: "stuk",
+      source: "handmatig",
+    });
+    if (!isOnline) {
+      enqueue(url, "POST", body);
+      // Optimistically add to local state
+      const tempItem: GroceryItem = {
+        id: crypto.randomUUID(),
+        name: addText.trim(),
+        quantity: 1,
+        unit: "stuk",
+        category: "Overig",
+        source: "handmatig",
+        checked: false,
+      };
+      setList({ ...list, items: [...list.items, tempItem] });
+      setAddText("");
+      return;
+    }
     try {
-      await apiFetch(`/lists/${list.id}/items`, {
-        method: "POST",
-        body: JSON.stringify({
-          name: addText.trim(),
-          quantity: 1,
-          unit: "stuk",
-          source: "handmatig",
-        }),
-      });
+      await apiFetch(url, { method: "POST", body });
       setAddText("");
       await fetchList();
     } catch {
@@ -125,6 +145,13 @@ export default function ShoppingMode() {
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-white">
+      {/* Offline indicator */}
+      {!isOnline && (
+        <div className="bg-yellow-400 px-4 py-2 text-center text-sm font-medium text-yellow-900">
+          Offline — wijzigingen worden opgeslagen
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-4 pb-3 pt-4">
         <div className="mx-auto flex max-w-lg items-center gap-3">
