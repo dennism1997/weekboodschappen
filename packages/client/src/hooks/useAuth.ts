@@ -9,10 +9,7 @@ export function useAuth() {
     household: activeOrg.data || null,
     loading: session.isPending,
     authenticated: !!session.data?.session,
-    signUp: authClient.signUp.email,
-    signIn: authClient.signIn.email,
     signOut: authClient.signOut,
-    // Organization methods
     createOrganization: authClient.organization.create,
     setActiveOrganization: authClient.organization.setActive,
   };
