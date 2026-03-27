@@ -221,28 +221,26 @@ export default function MealPlanner() {
   };
 
   if (loading) {
-    return <p className="py-12 text-center text-sm text-gray-400">Laden...</p>;
+    return <p className="py-12 text-center text-[13px] text-ios-secondary">Laden...</p>;
   }
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Weekplanner</h1>
-          <p className="text-sm text-gray-500">{getWeekLabel()}</p>
-        </div>
+      <div className="mb-4">
+        <h1 className="text-[34px] font-bold leading-tight text-ios-label">Weekplanner</h1>
+        <p className="text-[13px] text-ios-secondary">{getWeekLabel()}</p>
       </div>
 
-      {/* Store selector */}
-      <div className="mb-4 flex gap-2">
+      {/* Store selector — iOS segmented control */}
+      <div className="mb-5 flex rounded-[9px] bg-ios-segmented-bg p-0.5">
         {STORES.map((s) => (
           <button
             key={s}
             onClick={() => updateStore(s)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+            className={`flex-1 rounded-[7px] py-[7px] text-[13px] font-semibold transition ${
               store === s
-                ? "bg-green-600 text-white"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-white text-ios-label shadow-sm"
+                : "text-ios-label"
             }`}
           >
             {s}
@@ -253,14 +251,14 @@ export default function MealPlanner() {
       {!plan ? (
         <>
           <div className="py-12 text-center">
-            <p className="text-gray-500">Nog geen weekplan.</p>
-            <p className="mt-1 text-sm text-gray-400">
+            <p className="text-[17px] text-ios-secondary">Nog geen weekplan.</p>
+            <p className="mt-1 text-[13px] text-ios-tertiary">
               Maak een plan en voeg recepten toe.
             </p>
             <button
               onClick={createPlan}
               disabled={creating}
-              className="mt-4 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+              className="mt-4 rounded-[14px] bg-accent px-5 py-3 text-[17px] font-semibold text-white disabled:opacity-50"
             >
               {creating ? "Bezig..." : "Nieuw weekplan"}
             </button>
@@ -268,21 +266,18 @@ export default function MealPlanner() {
 
           {recommendations.length > 0 && (
             <div className="mt-6">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">Suggesties</h2>
+              <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
                 {recommendations.map((rec, i) => (
-                  <div
-                    key={i}
-                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
-                  >
-                    <p className="text-sm font-medium text-gray-900">{rec.title}</p>
+                  <div key={i} className="rounded-[12px] bg-white p-4">
+                    <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
                     {rec.description && (
-                      <p className="mt-1 text-xs text-gray-500">{rec.description}</p>
+                      <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                     )}
                     {rec.discountMatches.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
                         {rec.discountMatches.map((d, j) => (
-                          <span key={j} className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                          <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
                             korting: {d}
                           </span>
                         ))}
@@ -298,63 +293,68 @@ export default function MealPlanner() {
         <>
           {/* Recipes in plan */}
           {plan.recipes.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-gray-300 py-8 text-center">
-              <p className="text-sm text-gray-500">
+            <div className="rounded-[12px] border-2 border-dashed border-ios-tertiary py-8 text-center">
+              <p className="text-[15px] text-ios-secondary">
                 Nog geen recepten toegevoegd.
               </p>
             </div>
           ) : (
-            <div className="mb-4 space-y-2">
-              {plan.recipes.map((r) => (
+            <div className="mb-4 overflow-hidden rounded-[12px] bg-white">
+              {plan.recipes.map((r, idx) => (
                 <div
                   key={r.recipeId}
-                  className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+                  className={`flex min-h-[44px] items-center justify-between px-4 py-3 ${
+                    idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
+                  }`}
                 >
-                  <div className="flex items-start justify-between">
-                    <h3 className="text-sm font-semibold text-gray-900">
-                      {r.title}
-                    </h3>
-                    <button
-                      onClick={() => removeRecipeFromPlan(r.recipeId)}
-                      className="ml-2 text-gray-400 hover:text-red-500"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                  <div className="mt-2 flex items-center gap-3">
-                    <label className="flex items-center gap-1 text-xs text-gray-500">
-                      <span>Porties:</span>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={r.servings}
+                  <div>
+                    <h3 className="text-[17px] text-ios-label">{r.title}</h3>
+                    <div className="mt-0.5 flex items-center gap-3 text-[13px] text-ios-secondary">
+                      <label className="flex items-center gap-1">
+                        <span>Porties:</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={r.servings}
+                          onChange={(e) =>
+                            updateRecipeInPlan(r.recipeId, {
+                              servings: parseInt(e.target.value) || 1,
+                            })
+                          }
+                          className="w-12 rounded-[8px] border border-ios-separator px-2 py-0.5 text-center text-[13px] text-ios-label"
+                        />
+                      </label>
+                      <select
+                        value={r.day || ""}
                         onChange={(e) =>
                           updateRecipeInPlan(r.recipeId, {
-                            servings: parseInt(e.target.value) || 1,
+                            day: e.target.value || null,
                           })
                         }
-                        className="w-14 rounded border border-gray-200 px-2 py-0.5 text-center text-xs"
-                      />
-                    </label>
-                    <select
-                      value={r.day || ""}
-                      onChange={(e) =>
-                        updateRecipeInPlan(r.recipeId, {
-                          day: e.target.value || null,
-                        })
-                      }
-                      className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-600"
+                        className="rounded-[8px] border border-ios-separator px-2 py-0.5 text-[13px] text-ios-secondary"
+                      >
+                        <option value="">Geen dag</option>
+                        {DAYS.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {r.day && (
+                      <span className="rounded-[6px] bg-accent px-2 py-0.5 text-[11px] font-semibold text-white">
+                        {r.day}
+                      </span>
+                    )}
+                    <button
+                      onClick={() => removeRecipeFromPlan(r.recipeId)}
+                      className="text-ios-destructive"
                     >
-                      <option value="">Geen dag</option>
-                      {DAYS.map((d) => (
-                        <option key={d} value={d}>
-                          {d}
-                        </option>
-                      ))}
-                    </select>
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               ))}
@@ -370,20 +370,20 @@ export default function MealPlanner() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 autoFocus
-                className="mb-2 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none"
+                className="mb-2 w-full rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[17px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
               />
               {searchResults.length > 0 && (
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-gray-200 bg-white">
-                  {searchResults.map((r) => (
+                <div className="max-h-48 overflow-y-auto rounded-[12px] bg-white">
+                  {searchResults.map((r, idx) => (
                     <button
                       key={r.id}
                       onClick={() => addRecipeToPlan(r)}
-                      className="flex w-full items-center justify-between border-b border-gray-100 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                      className={`flex w-full min-h-[44px] items-center justify-between px-4 py-3 text-left ${
+                        idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
+                      }`}
                     >
-                      <span className="text-gray-900">{r.title}</span>
-                      <span className="text-xs text-gray-400">
-                        {r.servings} pers.
-                      </span>
+                      <span className="text-[17px] text-ios-label">{r.title}</span>
+                      <span className="text-[13px] text-ios-secondary">{r.servings} pers.</span>
                     </button>
                   ))}
                 </div>
@@ -394,7 +394,7 @@ export default function MealPlanner() {
                   setSearchQuery("");
                   setSearchResults([]);
                 }}
-                className="mt-2 text-xs text-gray-400 hover:text-gray-600"
+                className="mt-2 text-[13px] text-ios-secondary"
               >
                 Annuleren
               </button>
@@ -402,7 +402,7 @@ export default function MealPlanner() {
           ) : (
             <button
               onClick={() => setShowSearch(true)}
-              className="mb-4 w-full rounded-lg border-2 border-dashed border-gray-300 py-2.5 text-sm font-medium text-gray-500 hover:border-green-400 hover:text-green-600"
+              className="mb-4 w-full rounded-[12px] border-2 border-dashed border-ios-tertiary py-3 text-[15px] font-medium text-accent"
             >
               + Recept toevoegen
             </button>
@@ -413,34 +413,29 @@ export default function MealPlanner() {
             <button
               onClick={generateList}
               disabled={generating}
-              className="w-full rounded-lg bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+              className="w-full rounded-[14px] bg-accent py-4 text-[17px] font-semibold text-white disabled:opacity-50"
             >
-              {generating
-                ? "Lijst genereren..."
-                : "Boodschappenlijst maken"}
+              {generating ? "Lijst genereren..." : "Boodschappenlijst maken"}
             </button>
           )}
 
           {/* Suggestions */}
           {recommendations.length > 0 && (
             <div className="mt-6">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">Suggesties</h2>
+              <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
                 {recommendations.map((rec, i) => (
-                  <div
-                    key={i}
-                    className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
-                  >
+                  <div key={i} className="rounded-[12px] bg-white p-4">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{rec.title}</p>
+                        <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
                         {rec.description && (
-                          <p className="mt-0.5 text-xs text-gray-500">{rec.description}</p>
+                          <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                         )}
                         {rec.discountMatches.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
                             {rec.discountMatches.map((d, j) => (
-                              <span key={j} className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                              <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
                                 korting: {d}
                               </span>
                             ))}
@@ -450,7 +445,7 @@ export default function MealPlanner() {
                       {rec.isExisting && rec.existingRecipeId && (
                         <button
                           onClick={() => addSuggestionToPlan(rec)}
-                          className="ml-2 shrink-0 rounded-lg bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                          className="ml-2 shrink-0 rounded-[8px] bg-accent px-3 py-1.5 text-[13px] font-semibold text-white"
                         >
                           + Plan
                         </button>
