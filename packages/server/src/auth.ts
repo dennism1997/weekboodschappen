@@ -9,10 +9,6 @@ if (!SECRET) {
   throw new Error("BETTER_AUTH_SECRET environment variable must be set");
 }
 
-const ALLOWED_EMAILS = process.env.ALLOWED_EMAILS
-  ? process.env.ALLOWED_EMAILS.split(",").map((e) => e.trim().toLowerCase())
-  : [];
-
 // @ts-ignore - inferred type not portable due to @simplewebauthn/server
 export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: drizzleAdapter(db, { provider: "sqlite" }),
@@ -20,20 +16,7 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:6883",
   basePath: "/api/auth",
   trustedOrigins: (process.env.TRUSTED_ORIGINS || "http://localhost:5173").split(","),
-  emailAndPassword: { enabled: true },
-  databaseHooks: {
-    user: {
-      create: {
-        before: async (user: any) => {
-          const email = user.email?.toLowerCase();
-          if (ALLOWED_EMAILS.length > 0 && (!email || !ALLOWED_EMAILS.includes(email))) {
-            throw new Error("Registratie niet toegestaan voor dit e-mailadres");
-          }
-          return { data: user };
-        },
-      },
-    },
-  },
+  emailAndPassword: { enabled: false },
   session: {
     cookieCache: { enabled: true, maxAge: 300 },
   },
