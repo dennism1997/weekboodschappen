@@ -1,6 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
+import DiscountBadge from "../components/DiscountBadge";
+
+interface DiscountInfo {
+  percentage: number;
+  originalPrice: number;
+  salePrice: number;
+}
 import { useSocket, SocketEvent } from "../hooks/useSocket";
 
 interface GroceryItem {
@@ -11,6 +18,7 @@ interface GroceryItem {
   category: string;
   source: "recept" | "basis" | "handmatig";
   checked: boolean;
+  discountInfo?: DiscountInfo | null;
 }
 
 interface GroceryListData {
@@ -174,6 +182,7 @@ export default function ShoppingMode() {
                   <span className="flex-1 text-base text-gray-900">
                     {item.name}
                   </span>
+                  <DiscountBadge discountInfo={item.discountInfo ?? null} />
                   <span className="text-sm text-gray-400">
                     {item.quantity} {item.unit}
                   </span>

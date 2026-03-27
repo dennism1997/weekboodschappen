@@ -4,6 +4,12 @@ import { apiFetch } from "../api/client";
 import CategoryGroup from "../components/CategoryGroup";
 import GroceryItemRow from "../components/GroceryItemRow";
 
+interface DiscountInfo {
+  percentage: number;
+  originalPrice: number;
+  salePrice: number;
+}
+
 interface GroceryItem {
   id: string;
   name: string;
@@ -12,6 +18,7 @@ interface GroceryItem {
   category: string;
   source: "recept" | "basis" | "handmatig";
   checked: boolean;
+  discountInfo?: DiscountInfo | null;
 }
 
 interface GroceryListData {
