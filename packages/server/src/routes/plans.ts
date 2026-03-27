@@ -98,7 +98,7 @@ router.get("/", (req, res) => {
 // POST / — Create a weekly plan (one per week)
 router.post("/", (req, res) => {
   const householdId = req.user!.householdId;
-  const weekStart = getCurrentWeekStart();
+  const weekStart = req.body.weekStart || getCurrentWeekStart();
 
   // Check if a plan for this week already exists
   const existing = db

@@ -59,6 +59,34 @@ function getWeekLabel(weekStart: string): string {
   return `${fmt(monday)} – ${fmt(sunday)}`;
 }
 
+function getWeekNumber(weekStart: string): number {
+  const date = new Date(weekStart);
+  const jan1 = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - jan1.getTime()) / 86400000);
+  return Math.ceil((days + jan1.getDay() + 1) / 7);
+}
+
+function getUpcomingWeeks(count: number): { weekStart: string; label: string }[] {
+  const weeks: { weekStart: string; label: string }[] = [];
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < count; i++) {
+    const ws = new Date(monday);
+    ws.setDate(monday.getDate() + i * 7);
+    const isoDate = ws.toISOString().split("T")[0];
+    weeks.push({
+      weekStart: isoDate,
+      label: `Week ${getWeekNumber(isoDate)} (${getWeekLabel(isoDate)})`,
+    });
+  }
+  return weeks;
+}
+
 export default function MealPlanner() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -73,6 +101,9 @@ export default function MealPlanner() {
 
   // Delete confirmation
   const [confirmDelete, setConfirmDelete] = useState(false);
+
+  // New plan week picker
+  const [showWeekPicker, setShowWeekPicker] = useState(false);
 
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
@@ -162,21 +193,26 @@ export default function MealPlanner() {
   };
   const invalidateSuggestions = () => queryClient.invalidateQueries({ queryKey: ["meal-suggestions"] });
 
-  const createPlan = async () => {
+  const createPlan = async (weekStart?: string) => {
     setCreating(true);
+    setShowWeekPicker(false);
     try {
       const newPlan = await apiFetch<Plan>("/plans", {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify(weekStart ? { weekStart } : {}),
       });
       setSelectedPlanId(newPlan.id);
-      await invalidatePlans();
+      invalidatePlans();
     } catch {
       // ignore
     } finally {
       setCreating(false);
     }
   };
+
+  // Available weeks for creating a new plan (exclude weeks that already have a plan)
+  const existingWeeks = new Set(allPlans.map((p) => p.weekStart));
+  const availableWeeks = getUpcomingWeeks(6).filter((w) => !existingWeeks.has(w.weekStart));
 
   const deletePlan = async () => {
     if (!currentPlan) return;
@@ -345,25 +381,38 @@ export default function MealPlanner() {
               </button>
             ))}
             <button
-              onClick={createPlan}
-              disabled={creating}
+              onClick={() => setShowWeekPicker(!showWeekPicker)}
+              disabled={creating || availableWeeks.length === 0}
               className="shrink-0 rounded-[10px] bg-white px-3 py-1.5 text-[13px] font-semibold text-accent disabled:opacity-50"
             >
               <Plus className="inline h-3.5 w-3.5" /> Nieuw
             </button>
           </div>
+          {showWeekPicker && availableWeeks.length > 0 && (
+            <div className="mt-2 overflow-hidden rounded-[12px] bg-white">
+              {availableWeeks.map((w) => (
+                <button
+                  key={w.weekStart}
+                  onClick={() => createPlan(w.weekStart)}
+                  className="flex w-full min-h-[44px] items-center px-4 py-3 text-left text-[15px] text-ios-label border-b border-ios-separator/50 last:border-b-0 active:bg-ios-category-bg"
+                >
+                  {w.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {!currentPlan ? (
         <>
           <div className="py-12 text-center">
-            <p className="text-[17px] text-ios-secondary">Nog geen weekplan.</p>
+            <p className="text-[17px] text-ios-secondary">Nog geen weekmenu.</p>
             <p className="mt-1 text-[13px] text-ios-tertiary">
-              Maak een plan en voeg recepten toe.
+              Maak een menu en voeg recepten toe.
             </p>
             <button
-              onClick={createPlan}
+              onClick={() => createPlan()}
               disabled={creating}
               className="mt-4 rounded-[14px] bg-accent px-5 py-3 text-[17px] font-semibold text-white disabled:opacity-50"
             >
