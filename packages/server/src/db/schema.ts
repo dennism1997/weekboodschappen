@@ -151,6 +151,24 @@ export const productDiscount = sqliteTable("product_discount", {
     .$defaultFn(() => new Date().toISOString()),
 });
 
+export const cachedSuggestion = sqliteTable("cached_suggestion", {
+  id: text("id").primaryKey(),
+  householdId: text("household_id").notNull(),
+  data: text("data", { mode: "json" }).notNull().$type<{
+    title: string;
+    description: string;
+    ingredients: string[];
+    discountMatches: string[];
+    isExisting: boolean;
+    existingRecipeId?: string;
+    recipeUrl?: string;
+    rating?: number;
+  }>(),
+  createdAt: text("created_at")
+    .notNull()
+    .$defaultFn(() => new Date().toISOString()),
+});
+
 export const favoriteWebsite = sqliteTable("favorite_website", {
   id: text("id").primaryKey(),
   householdId: text("household_id").notNull(),

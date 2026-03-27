@@ -318,7 +318,7 @@ export default function MealPlanner() {
   return (
     <div>
       <div className="mb-4">
-        <h1 className="text-[34px] font-bold leading-tight text-ios-label">Weekplanner</h1>
+        <h1 className="text-[34px] font-bold leading-tight text-ios-label">Weekmenu</h1>
       </div>
 
       {/* Plan selector */}

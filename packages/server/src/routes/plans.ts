@@ -10,7 +10,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { generateGroceryList } from "../services/lists.js";
 import { validate, addRecipeToPlanSchema } from "../validation/schemas.js";
-import { getRecommendations } from "../services/recommendations.js";
+import { getRecommendations, getCachedSuggestions } from "../services/recommendations.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -151,6 +151,16 @@ router.get("/current/recommendations", async (req, res) => {
   const excludeParam = req.query.exclude as string | undefined;
   const exclude = excludeParam ? excludeParam.split("|").filter(Boolean) : [];
 
+  // First load (no exclude): serve cached suggestions if available
+  if (exclude.length === 0) {
+    const cached = getCachedSuggestions(householdId);
+    if (cached.length > 0) {
+      res.json(cached);
+      return;
+    }
+  }
+
+  // Live AI call (for "load more" or when no cache exists)
   try {
     const suggestions = await getRecommendations(householdId, weekStart, exclude);
 

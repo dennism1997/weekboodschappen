@@ -1,7 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db/connection.js";
-import { recipe, productDiscount, weeklyStaple, favoriteWebsite } from "../db/schema.js";
+import { recipe, productDiscount, weeklyStaple, favoriteWebsite, cachedSuggestion } from "../db/schema.js";
 import { eq, and, gte, lte } from "drizzle-orm";
+import { member } from "../db/auth-schema.js";
 
 const client = new Anthropic();
 
@@ -187,5 +188,73 @@ Antwoord ALLEEN met geldige JSON in dit formaat:
   } catch {
     // JSON parse failure — return empty to trigger fallback
     return [];
+  }
+}
+
+/**
+ * Get cached suggestions for a household.
+ */
+export function getCachedSuggestions(householdId: string): Suggestion[] {
+  const cached = db
+    .select()
+    .from(cachedSuggestion)
+    .where(eq(cachedSuggestion.householdId, householdId))
+    .all();
+
+  return cached.map((c) => c.data as Suggestion);
+}
+
+/**
+ * Pre-generate and cache 10 suggestions for a household.
+ * Called after discount refresh.
+ */
+export async function refreshCachedSuggestions(householdId: string): Promise<void> {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  const weekStart = monday.toISOString().split("T")[0];
+
+  try {
+    const suggestions = await getRecommendations(householdId, weekStart);
+
+    // Clear old cached suggestions for this household
+    db.delete(cachedSuggestion)
+      .where(eq(cachedSuggestion.householdId, householdId))
+      .run();
+
+    // Insert new ones
+    for (const s of suggestions) {
+      db.insert(cachedSuggestion)
+        .values({
+          id: crypto.randomUUID(),
+          householdId,
+          data: s,
+        })
+        .run();
+    }
+
+    console.log(`Cached ${suggestions.length} suggestions for household ${householdId}`);
+  } catch (err) {
+    console.error(`Failed to cache suggestions for household ${householdId}:`, err);
+  }
+}
+
+/**
+ * Pre-generate suggestions for all households.
+ */
+export async function refreshAllCachedSuggestions(): Promise<void> {
+  // Get all unique household IDs from the member table
+  const households = db
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .all();
+
+  const uniqueIds = [...new Set(households.map((h) => h.organizationId))];
+
+  for (const householdId of uniqueIds) {
+    await refreshCachedSuggestions(householdId);
   }
 }

@@ -43,6 +43,13 @@
       "when": 1774632050797,
       "tag": "0005_futuristic_sinister_six",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1774633986950,
+      "tag": "0006_special_big_bertha",
+      "breakpoints": true
     }
   ]
 }
