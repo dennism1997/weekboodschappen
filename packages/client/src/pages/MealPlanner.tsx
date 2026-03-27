@@ -300,11 +300,28 @@ export default function MealPlanner() {
     await addRecipeToPlan({ id: recipeId, title: rec.title, servings: 4 });
   };
 
-  const saveToRecipes = async (rec: Suggestion, index: number) => {
-    const newId = await saveSuggestionAsRecipe(rec);
-    if (newId) {
-      setSavedSuggestions((prev) => ({ ...prev, [index]: newId }));
-      await invalidateSuggestions();
+  const toggleSaveRecipe = async (rec: Suggestion, index: number) => {
+    const existingId = rec.existingRecipeId || savedSuggestions[index];
+    if (existingId) {
+      // Unsave: delete from recipe library
+      try {
+        await apiFetch(`/recipes/${existingId}`, { method: "DELETE" });
+        setSavedSuggestions((prev) => {
+          const next = { ...prev };
+          delete next[index];
+          return next;
+        });
+        invalidateSuggestions();
+      } catch {
+        // ignore
+      }
+    } else {
+      // Save: create recipe from suggestion
+      const newId = await saveSuggestionAsRecipe(rec);
+      if (newId) {
+        setSavedSuggestions((prev) => ({ ...prev, [index]: newId }));
+        invalidateSuggestions();
+      }
     }
   };
 
@@ -463,8 +480,7 @@ export default function MealPlanner() {
                           )}
                         </div>
                         <button
-                          onClick={() => saveToRecipes(rec, i)}
-                          disabled={isSaved}
+                          onClick={() => toggleSaveRecipe(rec, i)}
                           className={`shrink-0 rounded-[8px] p-1.5 ${
                             isSaved
                               ? "bg-accent text-white"
@@ -732,8 +748,7 @@ export default function MealPlanner() {
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
                           <button
-                            onClick={() => saveToRecipes(rec, i)}
-                            disabled={isSaved}
+                            onClick={() => toggleSaveRecipe(rec, i)}
                             className={`rounded-[8px] p-1.5 ${
                               isSaved
                                 ? "bg-accent text-white"
