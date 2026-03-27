@@ -10,6 +10,7 @@ import RecipeDetail from "./pages/RecipeDetail.js";
 import Settings from "./pages/Settings.js";
 import Login from "./pages/Login.js";
 import Setup from "./pages/Setup.js";
+import Invite from "./pages/Invite.js";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { authenticated, loading } = useAuth();
@@ -22,6 +23,7 @@ export default function App() {
   return (
     <Routes>
       <Route path="/setup" element={<Setup />} />
+      <Route path="/invite/:token" element={<Invite />} />
       <Route path="/login" element={<Login />} />
       <Route
         element={
