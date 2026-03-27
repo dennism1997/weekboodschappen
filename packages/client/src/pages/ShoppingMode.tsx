@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/client";
+import { useSocket, SocketEvent } from "../hooks/useSocket";
 
 interface GroceryItem {
   id: string;
