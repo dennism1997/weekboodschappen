@@ -79,15 +79,25 @@ export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
     .map((raw) => parseIngredient(raw))
     .filter((ing) => ing.name.trim().length > 0);
 
-  // Extract instructions, filtering out step headers like "stap 1", "stap 2"
+  // Extract instructions with group headings, filtering out "stap N" noise
   const instructionSteps: { step: number; text: string }[] = [];
   let stepNum = 1;
-  const stepHeaderPattern = /^stap\s*\d+$/i;
+  const stepHeaderPattern = /^stap\s*\d+\.?:?\s*$/i;
+  const numberedStepPattern = /^stap\s*\d+\.?:?\s+/i;
   const instructionGroups = data.instructions || [];
   for (const group of instructionGroups) {
+    // Add group heading as a step (e.g. "Voor de saus:", "Bereiding:")
+    if (group.name) {
+      const heading = group.name.trim();
+      if (heading && !stepHeaderPattern.test(heading)) {
+        instructionSteps.push({ step: stepNum++, text: `**${heading}**` });
+      }
+    }
     for (const item of group.items) {
-      const text = item.value.trim();
+      let text = item.value.trim();
       if (!text || stepHeaderPattern.test(text)) continue;
+      // Strip leading "Stap 1: " prefix from the text itself
+      text = text.replace(numberedStepPattern, "");
       instructionSteps.push({ step: stepNum++, text });
     }
   }
