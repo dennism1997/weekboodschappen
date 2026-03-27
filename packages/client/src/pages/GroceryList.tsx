@@ -93,8 +93,11 @@ export default function GroceryList() {
     }
   };
 
-  // Group items by category
-  const grouped = (list?.items ?? []).reduce<Record<string, GroceryItem[]>>(
+  // Group items by category, unchecked first then checked at the bottom
+  const uncheckedItems = (list?.items ?? []).filter((i) => !i.checked);
+  const checkedItems = (list?.items ?? []).filter((i) => i.checked);
+
+  const grouped = uncheckedItems.reduce<Record<string, GroceryItem[]>>(
     (acc, item) => {
       const cat = item.category || "Overig";
       if (!acc[cat]) acc[cat] = [];
@@ -130,7 +133,7 @@ export default function GroceryList() {
   }
 
   const totalItems = list.items.length;
-  const checkedItems = list.items.filter((i) => i.checked).length;
+  const checkedCount = list.items.filter((i) => i.checked).length;
 
   return (
     <div>
@@ -138,12 +141,12 @@ export default function GroceryList() {
         <div>
           <h1 className="text-[34px] font-bold leading-tight text-ios-label">Boodschappen</h1>
           <p className="text-[13px] text-ios-secondary">
-            {checkedItems}/{totalItems} afgevinkt
+            {checkedCount}/{totalItems} afgevinkt
           </p>
           <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-ios-segmented-bg">
             <div
               className="h-full rounded-full bg-accent transition-all duration-300"
-              style={{ width: `${totalItems > 0 ? (checkedItems / totalItems) * 100 : 0}%` }}
+              style={{ width: `${totalItems > 0 ? (checkedCount / totalItems) * 100 : 0}%` }}
             />
           </div>
         </div>
@@ -226,6 +229,24 @@ export default function GroceryList() {
           ))}
         </CategoryGroup>
       ))}
+
+      {/* Checked items at the bottom */}
+      {checkedItems.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-tertiary">
+            Afgevinkt ({checkedItems.length})
+          </p>
+          <div className="overflow-hidden rounded-[12px] bg-white opacity-60">
+            {checkedItems.map((item) => (
+              <GroceryItemRow
+                key={item.id}
+                {...item}
+                onToggle={toggleItem}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Start shopping */}
       <button
