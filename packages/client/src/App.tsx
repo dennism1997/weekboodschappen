@@ -12,7 +12,7 @@ import Login from "./pages/Login.js";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { authenticated, loading } = useAuth();
-  if (loading) return <div className="flex h-screen items-center justify-center text-gray-400">Laden...</div>;
+  if (loading) return <div className="flex h-screen items-center justify-center text-ios-secondary">Laden...</div>;
   if (!authenticated) return <Navigate to="/login" replace />;
   return <>{children}</>;
 }
