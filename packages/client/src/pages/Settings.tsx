@@ -154,11 +154,22 @@ export default function Settings() {
     setAddingWebsite(true);
     try {
       const url = newWebsiteUrl.trim();
-      // Derive name from hostname (e.g. "ah.nl" from "https://www.ah.nl/allerhande")
+      // Derive readable name from hostname
+      // e.g. "https://www.leukerecepten.nl/" → "leuke recepten"
       let name = url;
       try {
         const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
-        name = parsed.hostname.replace(/^www\./, "");
+        const domain = parsed.hostname.replace(/^www\./, "").replace(/\.(nl|com|be|org|net|eu)$/, "");
+        // Split camelCase/joined words and capitalize
+        name = domain
+          .replace(/[-_.]/g, " ")
+          .replace(/([a-z])([A-Z])/g, "$1 $2")
+          .replace(/recepten/gi, " recepten")
+          .replace(/recept/gi, " recept")
+          .replace(/koken/gi, " koken")
+          .replace(/eten/gi, " eten")
+          .replace(/\s+/g, " ")
+          .trim();
       } catch {
         // keep raw url as name
       }
