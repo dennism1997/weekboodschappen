@@ -8,7 +8,7 @@ import { initScheduler } from "./jobs/scheduler.js";
 import { initSocketIO } from "./websocket/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PORT = parseInt(process.env.PORT || "3001", 10);
+const PORT = parseInt(process.env.PORT || "6883", 10);
 
 // Run migrations on startup
 migrate(db, { migrationsFolder: path.resolve(__dirname, "../migrations") });

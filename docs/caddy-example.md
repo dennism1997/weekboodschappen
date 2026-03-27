@@ -4,7 +4,7 @@ Example Caddyfile entry for proxying `boodschappen.mouwen.casa` to the Weekboods
 
 ```caddyfile
 boodschappen.mouwen.casa {
-    reverse_proxy <app-server-ip>:3001
+    reverse_proxy <app-server-ip>:6883
 }
 ```
 

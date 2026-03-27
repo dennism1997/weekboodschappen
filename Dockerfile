@@ -41,10 +41,10 @@ COPY --from=build-server /app/packages/server/migrations ./packages/server/migra
 COPY --from=build-client /app/packages/client/dist ./packages/client/dist
 
 ENV NODE_ENV=production
-ENV PORT=3001
+ENV PORT=6883
 ENV DATABASE_PATH=/data/weekboodschappen.db
 
-EXPOSE 3001
+EXPOSE 6883
 
 RUN mkdir -p /data && chown -R node:node /app /data
 VOLUME ["/data"]

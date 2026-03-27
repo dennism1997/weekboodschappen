@@ -4,17 +4,17 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "6883:6883"
     volumes:
       - app-data:/data
     environment:
       - DATABASE_PATH=/data/weekboodschappen.db
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - PORT=3001
+      - PORT=6883
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ALLOWED_EMAILS=${ALLOWED_EMAILS}
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://localhost:3001/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://localhost:6883/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 5

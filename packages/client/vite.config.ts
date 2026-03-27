@@ -28,9 +28,9 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://localhost:3001",
+      "/api": "http://localhost:6883",
       "/socket.io": {
-        target: "http://localhost:3001",
+        target: "http://localhost:6883",
         ws: true,
       },
     },
