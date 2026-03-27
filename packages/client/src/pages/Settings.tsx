@@ -99,6 +99,8 @@ export default function Settings() {
   const [members, setMembers] = useState<Member[]>([]);
   const [store, setStore] = useState("Jumbo");
   const [copied, setCopied] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState("");
+  const [creatingInvite, setCreatingInvite] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [storeConfigs, setStoreConfigs] = useState<Record<string, string[]>>({});
 
@@ -196,10 +198,25 @@ export default function Settings() {
     setStore(newStore);
   };
 
-  const copyInviteLink = async () => {
-    if (!household?.slug) return;
+  const createInviteLink = async () => {
+    setCreatingInvite(true);
     try {
-      await navigator.clipboard.writeText(household.slug);
+      const res = await apiFetch<{ url: string }>("/invite/create", { method: "POST" });
+      setInviteUrl(res.url);
+      await navigator.clipboard.writeText(res.url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // ignore
+    } finally {
+      setCreatingInvite(false);
+    }
+  };
+
+  const copyInviteLink = async () => {
+    if (!inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -227,15 +244,25 @@ export default function Settings() {
         </div>
         <div className="ml-4 flex min-h-[44px] items-center justify-between border-t border-ios-separator py-3 pr-4">
           <span className="text-[17px] text-ios-label">Uitnodiging</span>
-          <button
-            onClick={copyInviteLink}
-            className="flex items-center gap-1 rounded-[8px] bg-ios-category-bg px-3 py-1 font-mono text-[13px] text-ios-label"
-          >
-            {household?.slug || "\u2014"}
-            <span className="text-[11px] text-ios-secondary">
-              {copied ? "Gekopieerd!" : "Kopieer"}
-            </span>
-          </button>
+          {inviteUrl ? (
+            <button
+              onClick={copyInviteLink}
+              className="flex items-center gap-1 rounded-[8px] bg-ios-category-bg px-3 py-1 font-mono text-[13px] text-ios-label"
+            >
+              <span className="max-w-[140px] truncate">{inviteUrl}</span>
+              <span className="text-[11px] text-ios-secondary">
+                {copied ? "Gekopieerd!" : "Kopieer"}
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={createInviteLink}
+              disabled={creatingInvite}
+              className="rounded-[8px] bg-accent px-3 py-1 text-[13px] font-semibold text-white disabled:opacity-50"
+            >
+              {creatingInvite ? "Bezig..." : "Link maken"}
+            </button>
+          )}
         </div>
         <div className="ml-4 flex min-h-[44px] items-center justify-between border-t border-ios-separator py-3 pr-4">
           <span className="text-[17px] text-ios-label">Ingelogd als</span>
