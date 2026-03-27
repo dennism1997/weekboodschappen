@@ -147,8 +147,12 @@ router.get("/current/recommendations", async (req, res) => {
   const householdId = req.user!.householdId;
   const weekStart = getCurrentWeekStart();
 
+  // Parse exclude list (titles of already shown suggestions)
+  const excludeParam = req.query.exclude as string | undefined;
+  const exclude = excludeParam ? excludeParam.split("|").filter(Boolean) : [];
+
   try {
-    const suggestions = await getRecommendations(householdId, weekStart);
+    const suggestions = await getRecommendations(householdId, weekStart, exclude);
 
     if (suggestions.length > 0) {
       res.json(suggestions);

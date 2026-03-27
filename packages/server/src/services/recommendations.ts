@@ -27,6 +27,7 @@ function getSeason(date: Date): string {
 export async function getRecommendations(
   householdId: string,
   weekStart: string,
+  exclude: string[] = [],
 ): Promise<Suggestion[]> {
   const today = new Date().toISOString().split("T")[0];
   const season = getSeason(new Date());
@@ -105,14 +106,20 @@ export async function getRecommendations(
       ? `\nFavoriete receptenwebsites van het huishouden:\n${websites.map((w) => `- ${w.name}: ${w.url}`).join("\n")}\nZoek bij voorkeur recepten van deze websites. Geef voor elk recept de directe URL naar het recept op de website (recipeUrl). Als je geen exacte URL weet, geef dan de zoek-URL van de website.\n`
       : "";
 
-  const prompt = `Je bent een behulpzame Nederlandse maaltijdplanner. Stel 5-7 avondmaaltijden voor voor een Nederlands huishouden.
+  const excludeSection =
+    exclude.length > 0
+      ? `\nAl gesuggereerde recepten (NIET opnieuw suggereren):\n${exclude.map((t) => `- ${t}`).join("\n")}\nSuggereer ALLEEN recepten die NIET in deze lijst staan. Bedenk volledig nieuwe suggesties.\n`
+      : "";
+
+  const prompt = `Je bent een behulpzame Nederlandse maaltijdplanner. Stel 5 hoofdgerechten voor voor een Nederlands huishouden. Suggereer ALLEEN hoofdgerechten (geen bijgerechten, voorgerechten, desserts of snacks).
 
 Context:
 - Seizoen: ${season}
 - Week van: ${weekStart}
-${discountSection}${recentSection}${librarySection}${staplesSection}${websitesSection}
+${discountSection}${recentSection}${librarySection}${staplesSection}${websitesSection}${excludeSection}
 
 Regels:
+- Suggereer ALLEEN hoofdgerechten — geen bijgerechten, voorgerechten, desserts of snacks.
 - Suggereer een mix van Nederlandse en internationale gerechten die passen bij Nederlandse supermarkten (Albert Heijn, Jumbo).
 - Houd rekening met het seizoen (${season}) voor seizoensgebonden groenten en smaken.
 - Vermijd recepten die recent gekookt zijn.

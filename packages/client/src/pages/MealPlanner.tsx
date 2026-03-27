@@ -84,7 +84,10 @@ export default function MealPlanner() {
 
   // Track which suggestions have been saved as recipes (index → recipeId)
   const [savedSuggestions, setSavedSuggestions] = useState<Record<number, string>>({});
-  const [visibleSuggestions, setVisibleSuggestions] = useState(5);
+
+  // Accumulated suggestions (grows with each "load more")
+  const [allSuggestions, setAllSuggestions] = useState<Suggestion[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   // Fetch all plans
   const { data: allPlans = [] } = useQuery({
@@ -106,10 +109,32 @@ export default function MealPlanner() {
     enabled: !!selectedPlanId,
   });
 
-  const { data: recommendations = [] } = useQuery({
+  const { data: initialSuggestions = [] } = useQuery({
     queryKey: ["meal-suggestions"],
     queryFn: () => apiFetch<Suggestion[]>("/plans/current/recommendations"),
   });
+
+  // Seed accumulated suggestions from initial load
+  useEffect(() => {
+    if (initialSuggestions.length > 0 && allSuggestions.length === 0) {
+      setAllSuggestions(initialSuggestions);
+    }
+  }, [initialSuggestions]);
+
+  const loadMoreSuggestions = async () => {
+    setLoadingMore(true);
+    try {
+      const excludeTitles = allSuggestions.map((s) => s.title).join("|");
+      const newSuggestions = await apiFetch<Suggestion[]>(
+        `/plans/current/recommendations?exclude=${encodeURIComponent(excludeTitles)}`
+      );
+      setAllSuggestions((prev) => [...prev, ...newSuggestions]);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Sync store with current plan
   useEffect(() => {
@@ -379,11 +404,11 @@ export default function MealPlanner() {
             </button>
           </div>
 
-          {recommendations.length > 0 && (
+          {allSuggestions.length > 0 && (
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {recommendations.slice(0, visibleSuggestions).map((rec, i) => {
+                {allSuggestions.map((rec, i) => {
                   const isSaved = rec.isExisting || !!savedSuggestions[i];
 
                   return (
@@ -431,14 +456,13 @@ export default function MealPlanner() {
                   );
                 })}
               </div>
-              {recommendations.length > visibleSuggestions && (
-                <button
-                  onClick={() => setVisibleSuggestions((prev) => prev + 5)}
-                  className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent"
-                >
-                  Meer suggesties laden ({recommendations.length - visibleSuggestions} over)
-                </button>
-              )}
+              <button
+                onClick={loadMoreSuggestions}
+                disabled={loadingMore}
+                className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
+              >
+                {loadingMore ? "Nieuwe suggesties laden..." : "Meer suggesties"}
+              </button>
             </div>
           )}
         </>
@@ -638,11 +662,11 @@ export default function MealPlanner() {
           )}
 
           {/* Suggestions */}
-          {recommendations.length > 0 && (
+          {allSuggestions.length > 0 && (
             <div className="mt-6">
               <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {recommendations.slice(0, visibleSuggestions).map((rec, i) => {
+                {allSuggestions.map((rec, i) => {
                   const isSaved = rec.isExisting || !!savedSuggestions[i];
                   const alreadyInPlan = currentPlan.recipes.some(
                     (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[i]
@@ -704,14 +728,13 @@ export default function MealPlanner() {
                   );
                 })}
               </div>
-              {recommendations.length > visibleSuggestions && (
-                <button
-                  onClick={() => setVisibleSuggestions((prev) => prev + 5)}
-                  className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent"
-                >
-                  Meer suggesties laden ({recommendations.length - visibleSuggestions} over)
-                </button>
-              )}
+              <button
+                onClick={loadMoreSuggestions}
+                disabled={loadingMore}
+                className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
+              >
+                {loadingMore ? "Nieuwe suggesties laden..." : "Meer suggesties"}
+              </button>
             </div>
           )}
         </>
