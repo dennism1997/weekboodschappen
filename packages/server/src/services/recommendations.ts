@@ -121,6 +121,7 @@ ${discountSection}${recentSection}${librarySection}${staplesSection}${websitesSe
 
 Regels:
 - Suggereer ALLEEN hoofdgerechten — geen bijgerechten, voorgerechten, desserts of snacks.
+- Suggereer steeds TWEE recepten met hetzelfde hoofdingrediënt (bijv. 2x kip, 2x gehakt, 2x zalm). Zo kan het huishouden groter inkopen en besparen. Het laatste recept mag een ander ingrediënt hebben als het aantal oneven is.
 - Suggereer een mix van Nederlandse en internationale gerechten die passen bij Nederlandse supermarkten (Albert Heijn, Jumbo).
 - Houd rekening met het seizoen (${season}) voor seizoensgebonden groenten en smaken.
 - Vermijd recepten die recent gekookt zijn.
