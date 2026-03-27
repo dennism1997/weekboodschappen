@@ -16,7 +16,7 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL || "http://localhost:6883",
   basePath: "/api/auth",
   trustedOrigins: (process.env.TRUSTED_ORIGINS || "http://localhost:5173").split(","),
-  emailAndPassword: { enabled: false },
+  emailAndPassword: { enabled: true },
   session: {
     cookieCache: { enabled: true, maxAge: 300 },
   },

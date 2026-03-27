@@ -1,9 +1,10 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { db } from "../db/connection.js";
-import { user, account, invitation, member, session, organization } from "../db/auth-schema.js";
+import { invitation, member, organization } from "../db/auth-schema.js";
 import { eq, and } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
+import { auth } from "../auth.js";
 
 const router = Router();
 
@@ -91,58 +92,49 @@ router.post("/:token/accept", async (req, res) => {
     return;
   }
 
-  const userId = crypto.randomUUID();
-  const memberId = crypto.randomUUID();
-  const sessionId = crypto.randomUUID();
-  const sessionToken = crypto.randomBytes(32).toString("hex");
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  const email = `${crypto.randomUUID()}@passkey.local`;
+  const password = crypto.randomBytes(32).toString("hex");
 
-  await db.insert(user).values({
-    id: userId,
-    name,
-    email: `${userId}@passkey.local`,
-    emailVerified: false,
-    createdAt: now,
-    updatedAt: now,
+  // Create user via better-auth API so session/cookies are handled properly
+  const signUpResponse = await auth.api.signUpEmail({
+    body: { email, password, name },
   });
 
-  await db.insert(account).values({
-    id: crypto.randomUUID(),
-    accountId: userId,
-    providerId: "credential",
-    userId,
-    createdAt: now,
-    updatedAt: now,
-  });
+  if (!signUpResponse?.user) {
+    res.status(500).json({ error: "Failed to create user" });
+    return;
+  }
 
+  // Add user to organization
   await db.insert(member).values({
-    id: memberId,
+    id: crypto.randomUUID(),
     organizationId: invite.organizationId,
-    userId,
+    userId: signUpResponse.user.id,
     role: "member",
-    createdAt: now,
+    createdAt: new Date(),
   });
 
-  await db.insert(session).values({
-    id: sessionId,
-    token: sessionToken,
-    userId,
-    expiresAt,
-    createdAt: now,
-    updatedAt: now,
-    activeOrganizationId: invite.organizationId,
-  });
-
+  // Mark invite as used
   await db.update(invitation)
     .set({ status: "accepted" })
     .where(eq(invitation.id, req.params.token));
 
-  res.setHeader(
-    "Set-Cookie",
-    `better-auth.session_token=${sessionToken};Path=/;HttpOnly;SameSite=Lax;Max-Age=${30 * 24 * 60 * 60}`,
-  );
-  res.json({ success: true, userId });
+  // Sign in via better-auth to get proper signed cookies
+  const signInRequest = new Request("http://localhost/api/auth/sign-in/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+
+  const authResponse = await auth.handler(signInRequest);
+
+  // Forward the Set-Cookie headers from better-auth
+  const setCookies = authResponse.headers.getSetCookie();
+  for (const cookie of setCookies) {
+    res.append("Set-Cookie", cookie);
+  }
+
+  res.json({ success: true, userId: signUpResponse.user.id });
 });
 
 export default router;

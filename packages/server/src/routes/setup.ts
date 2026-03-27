@@ -1,8 +1,9 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { db } from "../db/connection.js";
-import { user, account, organization, member, session } from "../db/auth-schema.js";
+import { user, organization, member } from "../db/auth-schema.js";
 import { count } from "drizzle-orm";
+import { auth } from "../auth.js";
 
 const router = Router();
 
@@ -24,31 +25,22 @@ router.post("/", async (req, res) => {
     return;
   }
 
-  const userId = crypto.randomUUID();
+  const email = `${crypto.randomUUID()}@passkey.local`;
+  const password = crypto.randomBytes(32).toString("hex");
+
+  // Create user via better-auth API so session/cookies are handled properly
+  const signUpResponse = await auth.api.signUpEmail({
+    body: { email, password, name },
+  });
+
+  if (!signUpResponse?.user) {
+    res.status(500).json({ error: "Failed to create user" });
+    return;
+  }
+
+  // Create organization and membership
   const orgId = crypto.randomUUID();
-  const memberId = crypto.randomUUID();
-  const sessionId = crypto.randomUUID();
-  const sessionToken = crypto.randomBytes(32).toString("hex");
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
-
-  await db.insert(user).values({
-    id: userId,
-    name,
-    email: `${userId}@passkey.local`,
-    emailVerified: false,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  await db.insert(account).values({
-    id: crypto.randomUUID(),
-    accountId: userId,
-    providerId: "credential",
-    userId,
-    createdAt: now,
-    updatedAt: now,
-  });
 
   await db.insert(organization).values({
     id: orgId,
@@ -58,28 +50,29 @@ router.post("/", async (req, res) => {
   });
 
   await db.insert(member).values({
-    id: memberId,
+    id: crypto.randomUUID(),
     organizationId: orgId,
-    userId,
+    userId: signUpResponse.user.id,
     role: "owner",
     createdAt: now,
   });
 
-  await db.insert(session).values({
-    id: sessionId,
-    token: sessionToken,
-    userId,
-    expiresAt,
-    createdAt: now,
-    updatedAt: now,
-    activeOrganizationId: orgId,
+  // Sign in via better-auth to get proper signed cookies
+  const signInRequest = new Request("http://localhost/api/auth/sign-in/email", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
 
-  res.setHeader(
-    "Set-Cookie",
-    `better-auth.session_token=${sessionToken};Path=/;HttpOnly;SameSite=Lax;Max-Age=${30 * 24 * 60 * 60}`,
-  );
-  res.json({ success: true, userId });
+  const authResponse = await auth.handler(signInRequest);
+
+  // Forward the Set-Cookie headers from better-auth
+  const setCookies = authResponse.headers.getSetCookie();
+  for (const cookie of setCookies) {
+    res.append("Set-Cookie", cookie);
+  }
+
+  res.json({ success: true, userId: signUpResponse.user.id });
 });
 
 export default router;
