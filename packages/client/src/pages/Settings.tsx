@@ -113,7 +113,6 @@ export default function Settings() {
   const [resettingUserId, setResettingUserId] = useState("");
 
   // Favorite websites
-  const [newWebsiteName, setNewWebsiteName] = useState("");
   const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
   const [addingWebsite, setAddingWebsite] = useState(false);
 
@@ -151,14 +150,22 @@ export default function Settings() {
   });
 
   const addWebsite = async () => {
-    if (!newWebsiteName.trim() || !newWebsiteUrl.trim()) return;
+    if (!newWebsiteUrl.trim()) return;
     setAddingWebsite(true);
     try {
+      const url = newWebsiteUrl.trim();
+      // Derive name from hostname (e.g. "ah.nl" from "https://www.ah.nl/allerhande")
+      let name = url;
+      try {
+        const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+        name = parsed.hostname.replace(/^www\./, "");
+      } catch {
+        // keep raw url as name
+      }
       await apiFetch("/websites", {
         method: "POST",
-        body: JSON.stringify({ name: newWebsiteName.trim(), url: newWebsiteUrl.trim() }),
+        body: JSON.stringify({ name, url }),
       });
-      setNewWebsiteName("");
       setNewWebsiteUrl("");
       queryClient.invalidateQueries({ queryKey: ["favorite-websites"] });
     } catch {
@@ -413,31 +420,24 @@ export default function Settings() {
           ))
         )}
         <div className={`px-4 py-3 ${websites.length > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""}`}>
-          <div className="flex flex-col gap-2">
+          <div className="flex gap-2">
             <input
-              type="text"
-              placeholder="Naam (bijv. Allerhande)"
-              value={newWebsiteName}
-              onChange={(e) => setNewWebsiteName(e.target.value)}
-              className="w-full rounded-[8px] border border-ios-separator bg-ios-grouped-bg px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
+              type="url"
+              placeholder="Plak een website-URL..."
+              value={newWebsiteUrl}
+              onChange={(e) => setNewWebsiteUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") addWebsite(); }}
+              className="min-w-0 flex-1 rounded-[8px] border border-ios-separator bg-ios-grouped-bg px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
             />
-            <div className="flex gap-2">
-              <input
-                type="url"
-                placeholder="URL (bijv. ah.nl/allerhande)"
-                value={newWebsiteUrl}
-                onChange={(e) => setNewWebsiteUrl(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") addWebsite(); }}
-                className="min-w-0 flex-1 rounded-[8px] border border-ios-separator bg-ios-grouped-bg px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
-              />
+            {newWebsiteUrl.trim() && (
               <button
                 onClick={addWebsite}
-                disabled={addingWebsite || !newWebsiteName.trim() || !newWebsiteUrl.trim()}
+                disabled={addingWebsite}
                 className="shrink-0 rounded-[8px] bg-accent px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50"
               >
-                {addingWebsite ? "..." : "Toevoegen"}
+                {addingWebsite ? "..." : "+"}
               </button>
-            </div>
+            )}
           </div>
         </div>
       </section>
