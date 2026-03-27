@@ -12,7 +12,6 @@ services:
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
       - PORT=6883
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - ALLOWED_EMAILS=${ALLOWED_EMAILS}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:6883/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
       interval: 10s
