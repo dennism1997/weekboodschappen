@@ -466,16 +466,16 @@ export async function refreshAllDiscounts(
  */
 export function matchDiscountsToIngredients(
   ingredientNames: string[],
-  store: string,
+  _store?: string,
 ): Record<string, DiscountMatch> {
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch all current discounts for the store
+  // Fetch all current discounts from ALL stores
   const discounts = db
     .select()
     .from(productDiscount)
     .where(
-      sql`${productDiscount.store} = ${store} AND ${productDiscount.validFrom} <= ${today} AND ${productDiscount.validUntil} >= ${today}`,
+      sql`${productDiscount.validFrom} <= ${today} AND ${productDiscount.validUntil} >= ${today}`,
     )
     .all();
 
