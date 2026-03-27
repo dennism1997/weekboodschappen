@@ -116,21 +116,21 @@ export default function GroceryList() {
   const categories = Object.keys(grouped).sort();
 
   if (loading) {
-    return <p className="py-12 text-center text-sm text-gray-400">Laden...</p>;
+    return <p className="py-12 text-center text-[13px] text-ios-secondary">Laden...</p>;
   }
 
   if (!list) {
     return (
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Boodschappenlijst</h1>
+        <h1 className="text-[34px] font-bold text-ios-label">Boodschappen</h1>
         <div className="py-12 text-center">
-          <p className="text-gray-500">Geen boodschappenlijst gevonden.</p>
-          <p className="mt-1 text-sm text-gray-400">
+          <p className="text-[17px] text-ios-secondary">Geen boodschappenlijst gevonden.</p>
+          <p className="mt-1 text-[13px] text-ios-tertiary">
             Maak eerst een weekplan en genereer een lijst.
           </p>
           <button
             onClick={() => navigate("/planner")}
-            className="mt-4 rounded-lg bg-green-600 px-5 py-2 text-sm font-medium text-white hover:bg-green-700"
+            className="mt-4 rounded-[14px] bg-accent px-5 py-3 text-[17px] font-semibold text-white"
           >
             Naar weekplanner
           </button>
@@ -146,22 +146,28 @@ export default function GroceryList() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Boodschappenlijst</h1>
-          <p className="text-xs text-gray-500">
+          <h1 className="text-[34px] font-bold leading-tight text-ios-label">Boodschappen</h1>
+          <p className="text-[13px] text-ios-secondary">
             {checkedItems}/{totalItems} afgevinkt
           </p>
+          <div className="mt-1 h-1 w-40 overflow-hidden rounded-full bg-ios-segmented-bg">
+            <div
+              className="h-full rounded-full bg-accent transition-all duration-300"
+              style={{ width: `${totalItems > 0 ? (checkedItems / totalItems) * 100 : 0}%` }}
+            />
+          </div>
         </div>
         <button
           onClick={() => setShowAdd(!showAdd)}
-          className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+          className="rounded-[10px] bg-accent px-3.5 py-2 text-[13px] font-semibold text-white"
         >
-          + Item toevoegen
+          + Item
         </button>
       </div>
 
       {/* Add item form */}
       {showAdd && (
-        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+        <div className="mb-4 overflow-hidden rounded-[12px] bg-white p-4">
           <div className="flex gap-2">
             <input
               type="text"
@@ -169,33 +175,31 @@ export default function GroceryList() {
               value={newItem.name}
               onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
               autoFocus
-              className="flex-1 rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-green-500 focus:outline-none"
+              className="flex-1 rounded-[8px] border border-ios-separator px-3 py-2 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
             />
             <input
               type="number"
               value={newItem.quantity}
-              onChange={(e) =>
-                setNewItem({ ...newItem, quantity: e.target.value })
-              }
-              className="w-16 rounded border border-gray-300 px-2 py-1.5 text-center text-sm focus:border-green-500 focus:outline-none"
+              onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value })}
+              className="w-16 rounded-[8px] border border-ios-separator px-2 py-2 text-center text-[15px] text-ios-label focus:border-accent focus:outline-none"
             />
             <input
               type="text"
               value={newItem.unit}
               onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-              className="w-16 rounded border border-gray-300 px-2 py-1.5 text-center text-sm focus:border-green-500 focus:outline-none"
+              className="w-16 rounded-[8px] border border-ios-separator px-2 py-2 text-center text-[15px] text-ios-label focus:border-accent focus:outline-none"
             />
           </div>
-          <div className="mt-2 flex justify-end gap-2">
+          <div className="mt-3 flex justify-end gap-2">
             <button
               onClick={() => setShowAdd(false)}
-              className="text-xs text-gray-400 hover:text-gray-600"
+              className="text-[13px] text-ios-secondary"
             >
               Annuleren
             </button>
             <button
               onClick={addItem}
-              className="rounded bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+              className="rounded-[8px] bg-accent px-4 py-1.5 text-[13px] font-semibold text-white"
             >
               Toevoegen
             </button>
@@ -219,7 +223,7 @@ export default function GroceryList() {
       {/* Start shopping */}
       <button
         onClick={() => navigate("/shop")}
-        className="mt-4 w-full rounded-lg bg-green-600 py-3 text-sm font-semibold text-white hover:bg-green-700"
+        className="mt-4 w-full rounded-[14px] bg-accent py-4 text-[17px] font-semibold text-white"
       >
         Winkelen starten
       </button>
