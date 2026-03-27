@@ -4,6 +4,7 @@ import { db } from "../db/connection.js";
 import { user, organization, member, recoveryToken } from "../db/auth-schema.js";
 import { count } from "drizzle-orm";
 import { auth } from "../auth.js";
+import { refreshCachedSuggestions } from "../services/recommendations.js";
 
 const router = Router();
 
@@ -86,6 +87,11 @@ router.post("/", async (req, res) => {
   for (const cookie of setCookies) {
     res.append("Set-Cookie", cookie);
   }
+
+  // Generate initial suggestions for the new household (async, don't block response)
+  refreshCachedSuggestions(orgId).catch((err) => {
+    console.error("Failed to generate initial suggestions:", err);
+  });
 
   res.json({ success: true, userId: signUpResponse.user.id, recoveryCode });
 });
