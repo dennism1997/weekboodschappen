@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { db } from "../db/connection.js";
-import { user, organization, member } from "../db/auth-schema.js";
+import { user, organization, member, recoveryToken } from "../db/auth-schema.js";
 import { count } from "drizzle-orm";
 import { auth } from "../auth.js";
 
@@ -57,6 +57,21 @@ router.post("/", async (req, res) => {
     createdAt: now,
   });
 
+  // Generate owner recovery code (shown once, stored as a "code" type token)
+  const recoveryCode = [
+    crypto.randomBytes(3).toString("hex"),
+    crypto.randomBytes(3).toString("hex"),
+    crypto.randomBytes(3).toString("hex"),
+  ].join("-");
+
+  await db.insert(recoveryToken).values({
+    id: recoveryCode,
+    userId: signUpResponse.user.id,
+    type: "code",
+    expiresAt: new Date("2099-12-31"),
+    createdAt: now,
+  });
+
   // Sign in via better-auth to get proper signed cookies
   const signInRequest = new Request("http://localhost/api/auth/sign-in/email", {
     method: "POST",
@@ -72,7 +87,7 @@ router.post("/", async (req, res) => {
     res.append("Set-Cookie", cookie);
   }
 
-  res.json({ success: true, userId: signUpResponse.user.id });
+  res.json({ success: true, userId: signUpResponse.user.id, recoveryCode });
 });
 
 export default router;

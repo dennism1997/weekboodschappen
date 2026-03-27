@@ -6,6 +6,9 @@ import { authClient } from "../lib/auth-client.js";
 export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoveryLoading, setRecoveryLoading] = useState(false);
   const navigate = useNavigate();
 
   const { isLoading: checking } = useQuery({
@@ -42,6 +45,23 @@ export default function Login() {
     }
   };
 
+  const handleRecoveryCode = async () => {
+    const code = recoveryCode.trim();
+    if (!code) return;
+    setError("");
+    setRecoveryLoading(true);
+    try {
+      const r = await fetch(`/api/recovery/${encodeURIComponent(code)}`);
+      const data = await r.json();
+      if (!r.ok || !data.valid) throw new Error(data.error || "Ongeldige herstelcode");
+      navigate(`/recover/${encodeURIComponent(code)}`);
+    } catch (err: any) {
+      setError(err.message || "Ongeldige herstelcode");
+    } finally {
+      setRecoveryLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-ios-bg px-4">
       <div className="w-full max-w-sm space-y-6">
@@ -59,6 +79,42 @@ export default function Login() {
         </button>
 
         {error && <p className="text-center text-[13px] text-ios-destructive">{error}</p>}
+
+        {showRecovery ? (
+          <div className="space-y-3">
+            <input
+              type="text"
+              value={recoveryCode}
+              onChange={(e) => setRecoveryCode(e.target.value)}
+              placeholder="Herstelcode (bijv. a1b2c3-d4e5f6-a7b8c9)"
+              className="w-full rounded-[12px] bg-ios-grouped-bg px-4 py-3 text-center font-mono text-[15px] text-ios-label placeholder:text-ios-secondary"
+            />
+            <button
+              onClick={handleRecoveryCode}
+              disabled={recoveryLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-accent px-4 py-4 text-[17px] font-semibold text-white disabled:opacity-50"
+            >
+              {recoveryLoading ? "Bezig..." : "Herstellen"}
+            </button>
+            <button
+              onClick={() => {
+                setShowRecovery(false);
+                setRecoveryCode("");
+                setError("");
+              }}
+              className="w-full rounded-[14px] px-4 py-3 text-[15px] text-ios-secondary"
+            >
+              Annuleren
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setShowRecovery(true)}
+            className="w-full text-center text-[13px] text-ios-secondary"
+          >
+            Passkey verloren? Gebruik herstelcode
+          </button>
+        )}
       </div>
     </div>
   );

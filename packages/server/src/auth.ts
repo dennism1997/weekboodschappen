@@ -13,7 +13,7 @@ if (!SECRET) {
 export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: drizzleAdapter(db, { provider: "sqlite" }),
   secret: SECRET,
-  baseURL: process.env.APP_URL || "http://localhost:6883",
+  baseURL: process.env.APP_URL || "http://localhost:5173",
   basePath: "/api/auth",
   trustedOrigins: (process.env.TRUSTED_ORIGINS || "http://localhost:5173").split(","),
   emailAndPassword: { enabled: true },
@@ -25,7 +25,7 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
     passkey({
       rpID: process.env.PASSKEY_RP_ID || "localhost",
       rpName: "Weekboodschappen",
-      origin: process.env.PASSKEY_ORIGIN || "http://localhost:5173",
+      origin: process.env.APP_URL || "http://localhost:5173",
     }),
   ],
 });

@@ -102,6 +102,8 @@ export default function Settings() {
   const [inviteUrl, setInviteUrl] = useState("");
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
+  const [recoveryUrl, setRecoveryUrl] = useState("");
+  const [resettingUserId, setResettingUserId] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -210,6 +212,22 @@ export default function Settings() {
     }
   };
 
+  const resetMemberPasskey = async (memberId: string) => {
+    setResettingUserId(memberId);
+    try {
+      const res = await apiFetch<{ url: string }>("/recovery/create", {
+        method: "POST",
+        body: JSON.stringify({ userId: memberId }),
+      });
+      setRecoveryUrl(res.url);
+      await navigator.clipboard.writeText(res.url);
+    } catch {
+      // ignore
+    } finally {
+      setResettingUserId("");
+    }
+  };
+
   const handleLogout = async () => {
     await signOut();
     window.location.href = "/login";
@@ -294,14 +312,33 @@ export default function Settings() {
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-light text-[13px] font-semibold text-accent">
                 {m.name.charAt(0).toUpperCase()}
               </span>
-              <span className="text-[17px] text-ios-label">{m.name}</span>
-              {m.id === user?.id && (
-                <span className="text-[13px] text-ios-tertiary">(jij)</span>
+              <span className="text-[17px] text-ios-label">
+                {m.name}{m.id === user?.id && " (jij)"}
+              </span>
+              {m.id !== user?.id && (
+                <button
+                  onClick={() => resetMemberPasskey(m.id)}
+                  disabled={resettingUserId === m.id}
+                  className="ml-auto rounded-[8px] bg-ios-category-bg px-3 py-1 text-[13px] text-ios-secondary"
+                >
+                  {resettingUserId === m.id ? "Bezig..." : "Reset passkey"}
+                </button>
               )}
             </div>
           ))
         )}
       </section>
+
+      {recoveryUrl && (
+        <div className="mb-6 rounded-[12px] bg-accent-light p-4">
+          <p className="text-[13px] font-semibold text-ios-label">Herstellink gekopieerd!</p>
+          <p className="mt-1 break-all font-mono text-[12px] text-ios-secondary">{recoveryUrl}</p>
+          <p className="mt-2 text-[12px] text-ios-tertiary">Stuur deze link naar het lid. De link is 1 uur geldig.</p>
+          <button onClick={() => setRecoveryUrl("")} className="mt-2 text-[13px] text-accent">
+            Sluiten
+          </button>
+        </div>
+      )}
 
       {/* Category ordering */}
       <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Categorievolgorde</p>

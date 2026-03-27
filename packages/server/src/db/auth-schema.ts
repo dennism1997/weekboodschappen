@@ -228,3 +228,29 @@ export const passkeyRelations = relations(passkey, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+export const recoveryToken = sqliteTable(
+  "recovery_token",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    type: text("type").notNull(), // "link" or "code"
+    expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+    usedAt: integer("used_at", { mode: "timestamp_ms" }),
+    createdAt: integer("created_at", { mode: "timestamp_ms" })
+      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+      .notNull(),
+  },
+  (table) => [
+    index("recovery_token_userId_idx").on(table.userId),
+  ],
+);
+
+export const recoveryTokenRelations = relations(recoveryToken, ({ one }) => ({
+  user: one(user, {
+    fields: [recoveryToken.userId],
+    references: [user.id],
+  }),
+}));

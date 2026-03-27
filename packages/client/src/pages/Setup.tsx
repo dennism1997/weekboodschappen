@@ -9,6 +9,8 @@ export default function Setup() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPasskey, setShowPasskey] = useState(false);
+  const [recoveryCode, setRecoveryCode] = useState("");
+  const [recoveryCodeSaved, setRecoveryCodeSaved] = useState(false);
   const navigate = useNavigate();
 
   const { isLoading: checking } = useQuery({
@@ -41,6 +43,7 @@ export default function Setup() {
       if (orgs.data && orgs.data.length > 0) {
         await authClient.organization.setActive({ organizationId: orgs.data[0].id });
       }
+      setRecoveryCode(data.recoveryCode || "");
       setShowPasskey(true);
     } catch (err: any) {
       setError(err.message || "Setup mislukt");
@@ -68,6 +71,33 @@ export default function Setup() {
   }
 
   if (showPasskey) {
+    if (recoveryCode && !recoveryCodeSaved) {
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-ios-bg px-4">
+          <div className="w-full max-w-sm space-y-6">
+            <div className="text-center">
+              <h1 className="text-[34px] font-bold text-ios-label">Herstelcode</h1>
+              <p className="mt-2 text-[13px] text-ios-secondary">
+                Bewaar deze code op een veilige plek. Als je je passkey verliest, kun je hiermee je account herstellen.
+              </p>
+            </div>
+            <div className="rounded-[14px] bg-white p-4 text-center">
+              <code className="text-[20px] font-mono font-semibold text-ios-label">{recoveryCode}</code>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(recoveryCode);
+                setRecoveryCodeSaved(true);
+              }}
+              className="w-full rounded-[14px] bg-accent px-4 py-4 text-[17px] font-semibold text-white"
+            >
+              Gekopieerd — Ga verder
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex min-h-screen items-center justify-center bg-ios-bg px-4">
         <div className="w-full max-w-sm space-y-6">

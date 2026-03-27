@@ -22,6 +22,13 @@
       "when": 1774558090138,
       "tag": "0002_light_stick",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1774625146760,
+      "tag": "0003_complete_dust",
+      "breakpoints": true
     }
   ]
 }
