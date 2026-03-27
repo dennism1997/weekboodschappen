@@ -199,7 +199,7 @@ export async function fetchJumboDiscounts(): Promise<NormalizedDiscount[]> {
       console.warn(
         `Jumbo promotions API returned ${res.status}, trying search fallback`,
       );
-      return fetchJumboDiscountsViaSearch();
+      return fetchJumboDiscountsViaBrowser();
     }
 
     const data = (await res.json()) as {
@@ -295,89 +295,98 @@ export async function fetchJumboDiscounts(): Promise<NormalizedDiscount[]> {
 
     if (discounts.length === 0) {
       console.warn("Jumbo API returned 0 discounts, trying search fallback");
-      return fetchJumboDiscountsViaSearch();
+      return fetchJumboDiscountsViaBrowser();
     }
 
     console.log(`Fetched ${discounts.length} Jumbo discounts`);
     return discounts;
   } catch (err) {
     console.error("Failed to fetch Jumbo discounts:", err);
-    return fetchJumboDiscountsViaSearch();
+    return fetchJumboDiscountsViaBrowser();
   }
 }
 
 /**
  * Fallback: use jumbo-wrapper to search common categories for promoted products.
  */
-async function fetchJumboDiscountsViaSearch(): Promise<NormalizedDiscount[]> {
+async function fetchJumboDiscountsViaBrowser(): Promise<NormalizedDiscount[]> {
   try {
-    const { Jumbo } = await import("jumbo-wrapper");
-    const jumbo = new Jumbo();
+    const { chromium } = await import("playwright");
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
 
-    const categories = [
-      "groente",
-      "fruit",
-      "vlees",
-      "vis",
-      "zuivel",
-      "brood",
-      "kaas",
-      "pasta",
-      "rijst",
-      "saus",
-      "snack",
-      "drinken",
-    ];
+    await page.goto("https://www.jumbo.com/aanbiedingen", {
+      waitUntil: "networkidle",
+      timeout: 30000,
+    });
 
-    const discounts: NormalizedDiscount[] = [];
+    // Extract product data from the rendered page
+    const products = await page.evaluate(() => {
+      const items: Array<{
+        title: string;
+        originalPrice: number;
+        salePrice: number;
+        tag: string;
+      }> = [];
+
+      // Look for product cards with promotional prices
+      const cards = document.querySelectorAll("[data-testid*='product'], [class*='product-card'], [class*='promotion']");
+      for (const card of cards) {
+        const titleEl = card.querySelector("[class*='title'], h3, h4, [data-testid*='title']");
+        const title = titleEl?.textContent?.trim();
+        if (!title) continue;
+
+        // Try to find prices
+        const priceEls = card.querySelectorAll("[class*='price'], [data-testid*='price']");
+        const prices: number[] = [];
+        for (const el of priceEls) {
+          const text = el.textContent?.replace(/[^0-9.,]/g, "").replace(",", ".") ?? "";
+          const val = parseFloat(text);
+          if (val > 0) prices.push(val);
+        }
+
+        // Look for discount tag
+        const tagEl = card.querySelector("[class*='tag'], [class*='badge'], [class*='discount'], [class*='promotion-tag']");
+        const tag = tagEl?.textContent?.trim() ?? "";
+
+        if (prices.length >= 2) {
+          const originalPrice = Math.max(...prices);
+          const salePrice = Math.min(...prices);
+          if (salePrice < originalPrice) {
+            items.push({ title, originalPrice, salePrice, tag });
+          }
+        } else if (prices.length === 1 && tag) {
+          items.push({ title, originalPrice: prices[0], salePrice: prices[0], tag });
+        }
+      }
+
+      return items;
+    });
+
+    await browser.close();
+
     const now = new Date();
     const weekStart = getWeekStart(now);
     const weekEnd = getWeekEnd(now);
 
-    for (const query of categories) {
-      try {
-        const results = await jumbo.product().getProductsFromName(query, {
-          limit: 20,
-        });
+    const discounts: NormalizedDiscount[] = products
+      .filter((p) => p.salePrice > 0 && p.salePrice < p.originalPrice)
+      .map((p) => ({
+        productName: p.title,
+        productId: null,
+        originalPrice: p.originalPrice,
+        salePrice: p.salePrice,
+        discountPercentage: Math.round(((p.originalPrice - p.salePrice) / p.originalPrice) * 100),
+        validFrom: weekStart,
+        validUntil: weekEnd,
+        store: "jumbo" as const,
+        category: "Overig",
+      }));
 
-        for (const item of results ?? []) {
-          const product = item?.product?.data;
-          if (!product) continue;
-
-          const prices = product.prices;
-          const originalPrice = (prices?.price?.amount ?? 0) / 100;
-          const promoPrice = prices?.promotionalPrice;
-          const salePrice = promoPrice ? promoPrice.amount / 100 : 0;
-
-          if (salePrice <= 0 || salePrice >= originalPrice) continue;
-
-          const percentage = Math.round(
-            ((originalPrice - salePrice) / originalPrice) * 100,
-          );
-
-          discounts.push({
-            productName: product.title ?? "Onbekend product",
-            productId: product.id ?? null,
-            originalPrice,
-            salePrice,
-            discountPercentage: percentage,
-            validFrom: weekStart,
-            validUntil: weekEnd,
-            store: "jumbo",
-            category: product.topLevelCategory ?? "Overig",
-          });
-        }
-      } catch {
-        // Skip this category on error
-      }
-    }
-
-    console.log(
-      `Fetched ${discounts.length} Jumbo discounts via search fallback`,
-    );
+    console.log(`Fetched ${discounts.length} Jumbo discounts via browser`);
     return discounts;
   } catch (err) {
-    console.error("Jumbo search fallback also failed:", err);
+    console.error("Jumbo browser scrape failed:", err);
     return [];
   }
 }
