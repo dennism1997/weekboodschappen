@@ -34,6 +34,11 @@ export default function Setup() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Setup mislukt");
+      // Activate the newly created organization
+      const orgs = await authClient.organization.list();
+      if (orgs.data && orgs.data.length > 0) {
+        await authClient.organization.setActive({ organizationId: orgs.data[0].id });
+      }
       setShowPasskey(true);
     } catch (err: any) {
       setError(err.message || "Setup mislukt");
