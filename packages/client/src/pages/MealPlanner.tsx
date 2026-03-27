@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, Trash2, Pencil, Plus } from "lucide-react";
+import { Bookmark, Trash2, Pencil, Plus, RefreshCw } from "lucide-react";
 import { apiFetch } from "../api/client";
 import { useAuth } from "../hooks/useAuth";
 
@@ -14,6 +14,7 @@ interface Suggestion {
   existingRecipeId?: string;
   recipeUrl?: string;
   rating?: number;
+  source: "eigen" | "website";
 }
 
 interface PlanRecipe {
@@ -124,10 +125,12 @@ export default function MealPlanner() {
     queryFn: () => apiFetch<PlanSummary[]>("/plans"),
   });
 
-  // Auto-select the first plan on load
+  // Auto-select the current week's plan on load (fallback to first plan)
   useEffect(() => {
     if (allPlans.length > 0 && !selectedPlanId) {
-      setSelectedPlanId(allPlans[0].id);
+      const currentWeekStart = getUpcomingWeeks(1)[0]?.weekStart;
+      const currentWeekPlan = allPlans.find((p) => p.weekStart === currentWeekStart);
+      setSelectedPlanId(currentWeekPlan?.id ?? allPlans[0].id);
     }
   }, [allPlans]);
 
@@ -150,14 +153,34 @@ export default function MealPlanner() {
     }
   }, [initialSuggestions]);
 
+  const refreshSuggestions = async () => {
+    setLoadingMore(true);
+    try {
+      const newSuggestions = await apiFetch<Suggestion[]>(
+        "/plans/current/recommendations/refresh",
+        { method: "POST" }
+      );
+      setAllSuggestions(newSuggestions);
+      setSavedSuggestions({});
+    } catch {
+      // ignore
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
   const loadMoreSuggestions = async () => {
     setLoadingMore(true);
     try {
-      const excludeTitles = allSuggestions.map((s) => s.title).join("|");
-      const newSuggestions = await apiFetch<Suggestion[]>(
-        `/plans/current/recommendations?exclude=${encodeURIComponent(excludeTitles)}`
+      const excludeTitles = allSuggestions.map((s) => s.title);
+      const moreSuggestions = await apiFetch<Suggestion[]>(
+        "/plans/current/recommendations/more",
+        {
+          method: "POST",
+          body: JSON.stringify({ exclude: excludeTitles }),
+        }
       );
-      setAllSuggestions((prev) => [...prev, ...newSuggestions]);
+      setAllSuggestions((prev) => [...prev, ...moreSuggestions]);
     } catch {
       // ignore
     } finally {
@@ -455,13 +478,22 @@ export default function MealPlanner() {
                     <div key={i} className="rounded-[12px] bg-white p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              rec.source === "eigen"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}>
+                              {rec.source === "eigen" ? "Eigen recept" : "Website"}
+                            </span>
+                          </div>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                           )}
-                          {rec.rating != null && (
+                          {rec.source === "website" && rec.rating != null && (
                             <p className="mt-0.5 text-[12px] text-ios-tertiary">
-                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {rec.rating}/5
+                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {Math.round(rec.rating * 10) / 10}/5
                             </p>
                           )}
                           {rec.recipeUrl && (
@@ -495,13 +527,24 @@ export default function MealPlanner() {
                   );
                 })}
               </div>
-              <button
-                onClick={loadMoreSuggestions}
-                disabled={loadingMore}
-                className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
-              >
-                {loadingMore ? "Nieuwe suggesties laden..." : "Meer suggesties"}
-              </button>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={loadMoreSuggestions}
+                  disabled={loadingMore}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {loadingMore ? "Laden..." : "Meer laden"}
+                </button>
+                <button
+                  onClick={refreshSuggestions}
+                  disabled={loadingMore}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-ios-secondary disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingMore ? "animate-spin" : ""}`} />
+                  Vernieuwen
+                </button>
+              </div>
             </div>
           )}
         </>
@@ -589,7 +632,11 @@ export default function MealPlanner() {
                   }`}
                 >
                   <div>
-                    <h3 className="text-[17px] text-ios-label">{r.title}</h3>
+                    <h3 className="text-[17px] text-ios-label">
+                      <button onClick={() => navigate(`/recipes/${r.recipeId}`)} className="text-left text-accent">
+                        {r.title}
+                      </button>
+                    </h3>
                     <div className="mt-0.5 flex items-center gap-3 text-[13px] text-ios-secondary">
                       <label className="flex items-center gap-1">
                         <span>Porties:</span>
@@ -722,13 +769,22 @@ export default function MealPlanner() {
                     <div key={i} className="rounded-[12px] bg-white p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              rec.source === "eigen"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-blue-100 text-blue-700"
+                            }`}>
+                              {rec.source === "eigen" ? "Eigen recept" : "Website"}
+                            </span>
+                          </div>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                           )}
-                          {rec.rating != null && (
+                          {rec.source === "website" && rec.rating != null && (
                             <p className="mt-0.5 text-[12px] text-ios-tertiary">
-                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {rec.rating}/5
+                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {Math.round(rec.rating * 10) / 10}/5
                             </p>
                           )}
                           {rec.recipeUrl && (
@@ -773,13 +829,24 @@ export default function MealPlanner() {
                   );
                 })}
               </div>
-              <button
-                onClick={loadMoreSuggestions}
-                disabled={loadingMore}
-                className="mt-2 w-full rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
-              >
-                {loadingMore ? "Nieuwe suggesties laden..." : "Meer suggesties"}
-              </button>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={loadMoreSuggestions}
+                  disabled={loadingMore}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {loadingMore ? "Laden..." : "Meer laden"}
+                </button>
+                <button
+                  onClick={refreshSuggestions}
+                  disabled={loadingMore}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-ios-secondary disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${loadingMore ? "animate-spin" : ""}`} />
+                  Vernieuwen
+                </button>
+              </div>
             </div>
           )}
         </>

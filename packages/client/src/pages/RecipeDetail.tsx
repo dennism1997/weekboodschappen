@@ -29,9 +29,52 @@ interface Recipe {
   timesCooked: number;
 }
 
-interface Plan {
+interface PlanSummary {
+  id: string;
+  weekStart: string;
+  displayName: string;
+}
+
+interface PlanDetail {
   id: string;
   recipes: { recipeId: string }[];
+}
+
+function getWeekLabel(weekStart: string): string {
+  const monday = new Date(weekStart);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  return `${fmt(monday)} – ${fmt(sunday)}`;
+}
+
+function getWeekNumber(weekStart: string): number {
+  const date = new Date(weekStart);
+  const jan1 = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - jan1.getTime()) / 86400000);
+  return Math.ceil((days + jan1.getDay() + 1) / 7);
+}
+
+function getUpcomingWeeks(count: number): { weekStart: string; label: string }[] {
+  const weeks: { weekStart: string; label: string }[] = [];
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+
+  for (let i = 0; i < count; i++) {
+    const ws = new Date(monday);
+    ws.setDate(monday.getDate() + i * 7);
+    const isoDate = ws.toISOString().split("T")[0];
+    weeks.push({
+      weekStart: isoDate,
+      label: `Week ${getWeekNumber(isoDate)} (${getWeekLabel(isoDate)})`,
+    });
+  }
+  return weeks;
 }
 
 export default function RecipeDetail() {
@@ -39,7 +82,8 @@ export default function RecipeDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
-  const [added, setAdded] = useState(false);
+  const [addedToPlanId, setAddedToPlanId] = useState<string | null>(null);
+  const [showWeekPicker, setShowWeekPicker] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const { data: recipe = null, isLoading: loading } = useQuery({
@@ -48,33 +92,19 @@ export default function RecipeDetail() {
     enabled: !!id,
   });
 
-  const { data: plan = null } = useQuery({
-    queryKey: ["current-plan-for-recipe", id],
-    queryFn: async () => {
-      const data = await apiFetch<Plan>("/plans/current");
-      if (id && data.recipes.some((r) => r.recipeId === id)) {
-        setAdded(true);
-      }
-      return data;
-    },
-    enabled: !!id,
+  const { data: allPlans = [] } = useQuery({
+    queryKey: ["all-plans"],
+    queryFn: () => apiFetch<PlanSummary[]>("/plans"),
   });
 
   if (loading) return <p className="text-center text-gray-400">Laden...</p>;
   if (!recipe) return null;
 
-  const handleAddToPlan = async () => {
+  const handleAddToPlan = async (planId: string) => {
     if (!recipe) return;
     setAdding(true);
+    setShowWeekPicker(false);
     try {
-      let planId = plan?.id;
-      if (!planId) {
-        const newPlan = await apiFetch<Plan>("/plans", {
-          method: "POST",
-          body: JSON.stringify({ store: "Jumbo" }),
-        });
-        planId = newPlan.id;
-      }
       await apiFetch(`/plans/${planId}/recipes`, {
         method: "POST",
         body: JSON.stringify({
@@ -82,14 +112,43 @@ export default function RecipeDetail() {
           servings: recipe.servings,
         }),
       });
-      setAdded(true);
-      queryClient.invalidateQueries({ queryKey: ["current-plan-for-recipe"] });
+      setAddedToPlanId(planId);
+      queryClient.invalidateQueries({ queryKey: ["all-plans"] });
     } catch {
       // ignore
     } finally {
       setAdding(false);
     }
   };
+
+  const handleAddToNewWeek = async (weekStart: string) => {
+    if (!recipe) return;
+    setAdding(true);
+    setShowWeekPicker(false);
+    try {
+      const newPlan = await apiFetch<PlanDetail>("/plans", {
+        method: "POST",
+        body: JSON.stringify({ weekStart }),
+      });
+      await apiFetch(`/plans/${newPlan.id}/recipes`, {
+        method: "POST",
+        body: JSON.stringify({
+          recipeId: recipe.id,
+          servings: recipe.servings,
+        }),
+      });
+      setAddedToPlanId(newPlan.id);
+      queryClient.invalidateQueries({ queryKey: ["all-plans"] });
+    } catch {
+      // ignore
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // Weeks that don't have a plan yet (for creating new plans)
+  const existingWeeks = new Set(allPlans.map((p) => p.weekStart));
+  const availableNewWeeks = getUpcomingWeeks(6).filter((w) => !existingWeeks.has(w.weekStart));
 
   const handleDelete = async () => {
     try {
@@ -163,16 +222,50 @@ export default function RecipeDetail() {
         ))}
       </ol>
 
-      {added ? (
+      {addedToPlanId ? (
         <button
           onClick={() => navigate("/planner")}
           className="mt-8 w-full rounded-[14px] border border-accent bg-accent-light px-4 py-3 text-[15px] font-semibold text-accent"
         >
-          ✓ Toegevoegd aan weekplan — Bekijk plan
+          Toegevoegd — Bekijk weekplan
         </button>
+      ) : showWeekPicker ? (
+        <div className="mt-8">
+          <p className="mb-2 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Kies een week</p>
+          <div className="overflow-hidden rounded-[12px] bg-white">
+            {allPlans.map((p, idx) => (
+              <button
+                key={p.id}
+                onClick={() => handleAddToPlan(p.id)}
+                disabled={adding}
+                className={`flex w-full min-h-[44px] items-center px-4 py-3 text-left text-[15px] text-ios-label active:bg-ios-category-bg disabled:opacity-50 ${
+                  idx > 0 ? "border-t border-ios-separator/50" : ""
+                }`}
+              >
+                {p.displayName}
+              </button>
+            ))}
+            {availableNewWeeks.map((w) => (
+              <button
+                key={w.weekStart}
+                onClick={() => handleAddToNewWeek(w.weekStart)}
+                disabled={adding}
+                className={`flex w-full min-h-[44px] items-center px-4 py-3 text-left text-[15px] text-accent active:bg-ios-category-bg disabled:opacity-50 border-t border-ios-separator/50`}
+              >
+                + {w.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowWeekPicker(false)}
+            className="mt-2 w-full py-2 text-[13px] text-ios-secondary"
+          >
+            Annuleren
+          </button>
+        </div>
       ) : (
         <button
-          onClick={handleAddToPlan}
+          onClick={() => setShowWeekPicker(true)}
           disabled={adding}
           className="mt-8 w-full rounded-[14px] bg-accent px-4 py-4 text-[17px] font-semibold text-white disabled:opacity-50"
         >

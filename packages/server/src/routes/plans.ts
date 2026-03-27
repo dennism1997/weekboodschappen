@@ -10,7 +10,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { generateGroceryList } from "../services/lists.js";
 import { validate, addRecipeToPlanSchema } from "../validation/schemas.js";
-import { getRecommendations, getCachedSuggestions } from "../services/recommendations.js";
+import { getRecommendations, getCachedSuggestions, refreshCachedSuggestions } from "../services/recommendations.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -157,63 +157,34 @@ router.get("/current", (req, res) => {
   res.json(getPlanWithRecipes(plan.id));
 });
 
-// GET /current/recommendations — Get AI-powered recipe recommendations
+// GET /current/recommendations — Get cached recipe suggestions
 router.get("/current/recommendations", async (req, res) => {
   const householdId = req.user!.householdId;
-  const weekStart = getCurrentWeekStart();
 
-  // Parse exclude list (titles of already shown suggestions)
-  const excludeParam = req.query.exclude as string | undefined;
-  const exclude = excludeParam ? excludeParam.split("|").filter(Boolean) : [];
-
-  // First load (no exclude): serve cached suggestions if available
-  if (exclude.length === 0) {
-    const cached = getCachedSuggestions(householdId);
-    if (cached.length > 0) {
-      res.json(cached);
-      return;
-    }
+  // Return cached suggestions
+  const cached = getCachedSuggestions(householdId);
+  if (cached.length > 0) {
+    res.json(cached);
+    return;
   }
 
-  // Live AI call (for "load more" or when no cache exists)
+  // No cache — generate live
   try {
-    const suggestions = await getRecommendations(householdId, weekStart, exclude);
-
+    const suggestions = await getRecommendations(householdId);
     if (suggestions.length > 0) {
       res.json(suggestions);
       return;
     }
   } catch {
-    // AI call failed — fall through to recency-based fallback
+    // Fall through to fallback
   }
 
-  // Fallback: recency-based recommendations
-  const plan = db
-    .select()
-    .from(weeklyPlan)
-    .where(eq(weeklyPlan.householdId, householdId))
-    .orderBy(desc(weeklyPlan.weekStart))
-    .get();
-
-  const excludeIds: string[] = [];
-  if (plan) {
-    const planRecipes = db
-      .select({ recipeId: weeklyPlanRecipe.recipeId })
-      .from(weeklyPlanRecipe)
-      .where(eq(weeklyPlanRecipe.weeklyPlanId, plan.id))
-      .all();
-    excludeIds.push(...planRecipes.map((pr) => pr.recipeId));
-  }
-
-  let allRecipes = db
+  // Fallback: recency-based own recipes
+  const allRecipes = db
     .select()
     .from(recipe)
     .where(eq(recipe.householdId, householdId))
     .all();
-
-  if (excludeIds.length > 0) {
-    allRecipes = allRecipes.filter((r) => !excludeIds.includes(r.id));
-  }
 
   allRecipes.sort((a, b) => {
     if (!a.lastCookedAt && b.lastCookedAt) return -1;
@@ -222,16 +193,45 @@ router.get("/current/recommendations", async (req, res) => {
     return a.lastCookedAt!.localeCompare(b.lastCookedAt!);
   });
 
-  const fallback = allRecipes.slice(0, 6).map((r) => ({
+  const fallback = allRecipes.slice(0, 5).map((r) => ({
     title: r.title,
     description: "",
     ingredients: [],
     discountMatches: [],
     isExisting: true,
     existingRecipeId: r.id,
+    source: "eigen" as const,
   }));
 
   res.json(fallback);
+});
+
+// POST /current/recommendations/refresh — Regenerate all suggestions
+router.post("/current/recommendations/refresh", async (req, res) => {
+  const householdId = req.user!.householdId;
+
+  try {
+    await refreshCachedSuggestions(householdId);
+    const suggestions = getCachedSuggestions(householdId);
+    res.json(suggestions);
+  } catch (err) {
+    console.error("Failed to refresh suggestions:", err);
+    res.status(500).json({ error: "Failed to refresh suggestions" });
+  }
+});
+
+// POST /current/recommendations/more — Load additional suggestions (excluding already shown)
+router.post("/current/recommendations/more", async (req, res) => {
+  const householdId = req.user!.householdId;
+  const exclude: string[] = req.body.exclude || [];
+
+  try {
+    const suggestions = await getRecommendations(householdId, exclude);
+    res.json(suggestions);
+  } catch (err) {
+    console.error("Failed to load more suggestions:", err);
+    res.status(500).json({ error: "Failed to load more suggestions" });
+  }
 });
 
 // GET /:id — Get a specific plan with recipes

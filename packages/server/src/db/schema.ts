@@ -163,6 +163,7 @@ export const cachedSuggestion = sqliteTable("cached_suggestion", {
     existingRecipeId?: string;
     recipeUrl?: string;
     rating?: number;
+    source: "eigen" | "website";
   }>(),
   createdAt: text("created_at")
     .notNull()

@@ -93,6 +93,8 @@ router.post("/", async (req, res) => {
   const defaultWebsites = [
     { url: "https://www.leukerecepten.nl/", name: "leuke recepten" },
     { url: "https://www.ah.nl/allerhande", name: "allerhande" },
+    { url: "https://www.lekkerensimpel.com/", name: "lekker en simpel" },
+    { url: "https://www.eefkooktzo.nl/", name: "eef kookt zo" },
   ];
   for (const w of defaultWebsites) {
     db.insert(favoriteWebsite)

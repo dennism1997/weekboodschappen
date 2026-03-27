@@ -8,4 +8,7 @@ data/
 .DS_Store
 .worktrees/
 .claude/worktrees
+.claude/settings.json
+.claude/settings.local.json
 .superpowers/
+**/*.bak

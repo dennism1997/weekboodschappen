@@ -1,8 +1,18 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "../db/connection.js";
-import { recipe, productDiscount, weeklyStaple, favoriteWebsite, cachedSuggestion } from "../db/schema.js";
+import {
+  recipe,
+  productDiscount,
+  favoriteWebsite,
+  cachedSuggestion,
+} from "../db/schema.js";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { member } from "../db/auth-schema.js";
+import {
+  scrapeRecipeListings,
+  getRecipeRating,
+  type ScrapedRecipeListing,
+} from "./website-scraper.js";
 
 const client = new Anthropic();
 
@@ -15,26 +25,27 @@ export interface Suggestion {
   existingRecipeId?: string;
   recipeUrl?: string;
   rating?: number;
+  source: "eigen" | "website";
+}
+
+interface Discount {
+  productName: string;
+  store: string;
+  discountPercentage: number;
+  salePrice: number;
 }
 
 function getSeason(date: Date): string {
-  const month = date.getMonth() + 1; // 1-12
+  const month = date.getMonth() + 1;
   if (month >= 3 && month <= 5) return "lente";
   if (month >= 6 && month <= 8) return "zomer";
   if (month >= 9 && month <= 11) return "herfst";
   return "winter";
 }
 
-export async function getRecommendations(
-  householdId: string,
-  weekStart: string,
-  exclude: string[] = [],
-): Promise<Suggestion[]> {
+function getCurrentDiscounts(): Discount[] {
   const today = new Date().toISOString().split("T")[0];
-  const season = getSeason(new Date());
-
-  // 1. Current discounts
-  const discounts = db
+  return db
     .select({
       productName: productDiscount.productName,
       store: productDiscount.store,
@@ -42,154 +53,273 @@ export async function getRecommendations(
       salePrice: productDiscount.salePrice,
     })
     .from(productDiscount)
-    .where(and(lte(productDiscount.validFrom, today), gte(productDiscount.validUntil, today)))
+    .where(
+      and(
+        lte(productDiscount.validFrom, today),
+        gte(productDiscount.validUntil, today),
+      ),
+    )
     .all();
+}
 
-  // 2. All recipes for the household (recipe library)
-  const allRecipes = db
-    .select({
-      id: recipe.id,
-      title: recipe.title,
-      tags: recipe.tags,
-      timesCooked: recipe.timesCooked,
-      lastCookedAt: recipe.lastCookedAt,
-    })
+/**
+ * Get 2 suggestions from own recipe library, preferring discount matches.
+ */
+function getOwnRecipeSuggestions(
+  householdId: string,
+  discounts: Discount[],
+  exclude: string[] = [],
+): Suggestion[] {
+  const excludeSet = new Set(exclude.map((t) => t.toLowerCase()));
+
+  let allRecipes = db
+    .select()
     .from(recipe)
     .where(eq(recipe.householdId, householdId))
     .all();
 
-  // 3. Last 8 weeks of cooking history
+  // Filter out already-shown recipes
+  allRecipes = allRecipes.filter((r) => !excludeSet.has(r.title.toLowerCase()));
+
+  if (allRecipes.length === 0) return [];
+
   const eightWeeksAgo = new Date();
   eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
   const eightWeeksAgoStr = eightWeeksAgo.toISOString().split("T")[0];
 
-  const recentlyCooked = allRecipes.filter(
-    (r) => r.lastCookedAt && r.lastCookedAt >= eightWeeksAgoStr,
-  );
+  // Score each recipe by discount matches + recency
+  const scored = allRecipes.map((r) => {
+    let score = 0;
+    const matchedDiscounts: string[] = [];
 
-  // 4. Active staples
-  const staples = db
-    .select({ name: weeklyStaple.name })
-    .from(weeklyStaple)
-    .where(and(eq(weeklyStaple.householdId, householdId), eq(weeklyStaple.active, true)))
-    .all();
+    const ingredients = (r.ingredients as { name: string }[]) || [];
+    for (const ing of ingredients) {
+      for (const d of discounts) {
+        const ingName = (ing.name || "").toLowerCase();
+        const dName = d.productName.toLowerCase();
+        if (ingName.includes(dName) || dName.includes(ingName)) {
+          score += d.discountPercentage;
+          matchedDiscounts.push(d.productName);
+        }
+      }
+    }
 
-  // 5. Favorite recipe websites
+    // Penalize recently cooked recipes
+    if (r.lastCookedAt && r.lastCookedAt >= eightWeeksAgoStr) {
+      score -= 50;
+    }
+
+    // Small bonus for never-cooked recipes
+    if (!r.lastCookedAt) {
+      score += 10;
+    }
+
+    return {
+      recipe: r,
+      score,
+      matchedDiscounts: [...new Set(matchedDiscounts)],
+    };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+
+  // Pick top 2 with different first ingredients (proxy for main ingredient)
+  const picks: (typeof scored)[number][] = [];
+  const usedMainIngredients = new Set<string>();
+
+  for (const item of scored) {
+    if (picks.length >= 2) break;
+    const ingredients = (item.recipe.ingredients as { name: string }[]) || [];
+    const mainIngredient = ingredients[0]?.name?.toLowerCase() || "";
+
+    if (usedMainIngredients.has(mainIngredient) && mainIngredient) continue;
+
+    picks.push(item);
+    if (mainIngredient) usedMainIngredients.add(mainIngredient);
+  }
+
+  return picks.map((p) => ({
+    title: p.recipe.title,
+    description: "",
+    ingredients: ((p.recipe.ingredients as { name: string }[]) || []).map(
+      (i) => i.name,
+    ),
+    discountMatches: p.matchedDiscounts,
+    isExisting: true,
+    existingRecipeId: p.recipe.id,
+    recipeUrl: p.recipe.sourceUrl || undefined,
+    source: "eigen" as const,
+  }));
+}
+
+/**
+ * Scrape favorite websites and use Claude to pick 3 real recipes.
+ */
+async function getWebsiteSuggestions(
+  householdId: string,
+  discounts: Discount[],
+  excludeTitles: string[],
+): Promise<Suggestion[]> {
+  // 1. Get favorite websites
   const websites = db
-    .select({ url: favoriteWebsite.url, name: favoriteWebsite.name })
+    .select()
     .from(favoriteWebsite)
     .where(eq(favoriteWebsite.householdId, householdId))
     .all();
 
-  // Build the prompt
+  if (websites.length === 0) return [];
+
+  // 2. Scrape recipe listings from each website (in parallel)
+  const scrapeResults = await Promise.allSettled(
+    websites.map((w) => scrapeRecipeListings(w.url)),
+  );
+  const allListings: ScrapedRecipeListing[] = [];
+  for (const result of scrapeResults) {
+    if (result.status === "fulfilled") {
+      allListings.push(...result.value);
+    }
+  }
+
+  if (allListings.length === 0) {
+    console.log("No recipe listings scraped from any website");
+    return [];
+  }
+
+  console.log(`Scraped ${allListings.length} recipe listings from ${websites.length} website(s)`);
+
+  // 3. Use Claude to pick 3 main courses from the scraped list
+  const season = getSeason(new Date());
   const discountSection =
     discounts.length > 0
-      ? `\nHuidige aanbiedingen:\n${discounts.map((d) => `- ${d.productName} (${d.store}, ${d.discountPercentage}% korting, nu ${d.salePrice} EUR)`).join("\n")}\nGeef voorkeur aan recepten die deze afgeprijsde producten gebruiken.\n`
-      : "\nEr zijn momenteel geen aanbiedingen beschikbaar.\n";
+      ? `\nHuidige aanbiedingen:\n${discounts.map((d) => `- ${d.productName} (${d.store}, ${d.discountPercentage}% korting)`).join("\n")}\n`
+      : "\nGeen aanbiedingen beschikbaar.\n";
 
-  const recentSection =
-    recentlyCooked.length > 0
-      ? `\nRecent gekookte recepten (vermijd herhaling):\n${recentlyCooked.map((r) => `- ${r.title} (laatst gekookt: ${r.lastCookedAt})`).join("\n")}\n`
-      : "";
+  const listingsSection = allListings
+    .map((l, i) => `${i + 1}. "${l.title}" — ${l.url}`)
+    .join("\n");
 
-  const librarySection =
-    allRecipes.length > 0
-      ? `\nBestaande receptenbibliotheek van het huishouden:\n${allRecipes.map((r) => `- "${r.title}" (id: ${r.id})`).join("\n")}\nAls je een recept suggereert dat al in de bibliotheek staat, zet dan isExisting op true en vul existingRecipeId in met het bijbehorende id.\n`
-      : "";
+  const prompt = `Je bent een Nederlandse maaltijdplanner. Kies 3 HOOFDGERECHTEN uit de onderstaande lijst van echte recepten.
 
-  const staplesSection =
-    staples.length > 0
-      ? `\nWekelijkse basisproducten (hoef je niet als ingredienten te noemen): ${staples.map((s) => s.name).join(", ")}\n`
-      : "";
-
-  const websitesSection =
-    websites.length > 0
-      ? `\nFavoriete receptenwebsites van het huishouden:\n${websites.map((w) => `- ${w.name}: ${w.url}`).join("\n")}\nZoek bij voorkeur recepten van deze websites. Geef voor elk recept de directe URL naar het recept op de website (recipeUrl). Als je geen exacte URL weet, geef dan de zoek-URL van de website.\n`
-      : "";
-
-  const excludeSection =
-    exclude.length > 0
-      ? `\nAl gesuggereerde recepten (NIET opnieuw suggereren):\n${exclude.map((t) => `- ${t}`).join("\n")}\nSuggereer ALLEEN recepten die NIET in deze lijst staan. Bedenk volledig nieuwe suggesties.\n`
-      : "";
-
-  const prompt = `Je bent een behulpzame Nederlandse maaltijdplanner. Stel 5 hoofdgerechten voor voor een Nederlands huishouden. Suggereer ALLEEN hoofdgerechten (geen bijgerechten, voorgerechten, desserts of snacks).
-
+Beschikbare recepten van favoriete websites:
+${listingsSection}
+${discountSection}
 Context:
 - Seizoen: ${season}
-- Week van: ${weekStart}
-${discountSection}${recentSection}${librarySection}${staplesSection}${websitesSection}${excludeSection}
+- Al gekozen/getoonde recepten (NIET opnieuw kiezen): ${excludeTitles.join(", ") || "geen"}
 
 Regels:
-- Suggereer ALLEEN hoofdgerechten — geen bijgerechten, voorgerechten, desserts of snacks.
-- Suggereer steeds TWEE recepten met hetzelfde hoofdingrediënt (bijv. 2x kip, 2x gehakt, 2x zalm). Zo kan het huishouden groter inkopen en besparen. Het laatste recept mag een ander ingrediënt hebben als het aantal oneven is.
-- Suggereer een mix van Nederlandse en internationale gerechten die passen bij Nederlandse supermarkten (Albert Heijn, Jumbo).
-- Houd rekening met het seizoen (${season}) voor seizoensgebonden groenten en smaken.
-- Vermijd recepten die recent gekookt zijn.
-- Als een suggestie overeenkomt met een recept in de bestaande bibliotheek, gebruik dan dat recept (isExisting: true, existingRecipeId: het id).
-- Nieuwe suggesties moeten isExisting: false hebben.
-- discountMatches moet de namen bevatten van afgeprijsde producten die in het recept passen.
-${websites.length > 0 ? `- Gebruik bij voorkeur recepten van de favoriete websites. Vul recipeUrl in met de directe link naar het recept.
-- Suggereer ALLEEN recepten die een goede beoordeling hebben (minimaal 3 uit 5 sterren of equivalent). Vul het rating veld in met de beoordeling (1-5 schaal). Recepten zonder beoordeling mogen wel, maar zet rating dan op null.
-` : ""}
-Antwoord ALLEEN met geldige JSON in dit formaat:
+- Kies ALLEEN recepten uit de bovenstaande lijst — verzin GEEN nieuwe recepten of URLs.
+- Kies ALLEEN hoofdgerechten (geen bijgerechten, voorgerechten, desserts, snacks, koekjes, taarten, ontbijt).
+- Maximaal 2 recepten met hetzelfde hoofdingrediënt (bijv. max 2x kip, max 2x gehakt).
+- Geef voorkeur aan recepten die passen bij de huidige aanbiedingen.
+- Kies recepten die NIET in de lijst van al gekozen/getoonde recepten staan.
+- Houd rekening met het seizoen (${season}).
+
+Antwoord ALLEEN met geldige JSON:
 [
   {
-    "title": "Naam van het gerecht",
+    "title": "Exacte titel uit de lijst",
+    "url": "Exacte URL uit de lijst",
     "description": "Korte beschrijving (1-2 zinnen)",
-    "ingredients": ["ingredi\u00ebnt1", "ingredi\u00ebnt2"],
-    "discountMatches": ["product in aanbieding"],
-    "isExisting": false,
-    "existingRecipeId": null,
-    "recipeUrl": null,
-    "rating": null
+    "ingredients": ["ingrediënt1", "ingrediënt2"],
+    "discountMatches": ["product in aanbieding dat past bij dit recept"]
   }
 ]`;
 
-  const response = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 2048,
-    messages: [{ role: "user", content: prompt }],
-  });
-
-  const text = response.content[0].type === "text" ? response.content[0].text : "";
-
   try {
-    // Extract JSON from the response (handle potential markdown code blocks)
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    const response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const text =
+      response.content[0].type === "text" ? response.content[0].text : "";
+    const jsonMatch = text.match(/\[[\s\S]*]/);
     if (!jsonMatch) {
-      throw new Error("No JSON array found in response");
+      console.error("No JSON found in Claude response for website suggestions");
+      return [];
     }
+
     const parsed = JSON.parse(jsonMatch[0]) as Array<{
       title: string;
+      url: string;
       description: string;
       ingredients: string[];
       discountMatches: string[];
-      isExisting: boolean;
-      existingRecipeId?: string | null;
-      recipeUrl?: string | null;
-      rating?: number | null;
     }>;
 
-    return parsed
-      .filter((item) => {
-        // Filter out recipes with rating below 3
-        if (item.rating != null && item.rating < 3) return false;
-        return true;
-      })
-      .map((item) => ({
-        title: item.title,
-        description: item.description || "",
-        ingredients: item.ingredients || [],
-        discountMatches: item.discountMatches || [],
-        isExisting: item.isExisting || false,
-        existingRecipeId: item.existingRecipeId || undefined,
-        recipeUrl: item.recipeUrl || undefined,
-        rating: item.rating ?? undefined,
-      }));
-  } catch {
-    // JSON parse failure — return empty to trigger fallback
+    // 4. Fetch ratings for the picked recipes (in parallel)
+    const ratingResults = await Promise.allSettled(
+      parsed.map((pick) => getRecipeRating(pick.url)),
+    );
+
+    const suggestions: Suggestion[] = [];
+    for (let i = 0; i < parsed.length; i++) {
+      const pick = parsed[i];
+
+      // Verify the URL is from our scraped list (Claude might hallucinate)
+      const listing = allListings.find((l) => l.url === pick.url);
+      if (!listing) {
+        console.log(`Skipping ${pick.title}: URL not in scraped list`);
+        continue;
+      }
+
+      const ratingResult = ratingResults[i];
+      const ratingData =
+        ratingResult.status === "fulfilled" ? ratingResult.value : null;
+
+      // Filter out recipes with rating below 3
+      if (ratingData && ratingData.value < 3) {
+        console.log(
+          `Skipping ${pick.title}: rating ${ratingData.value} < 3`,
+        );
+        continue;
+      }
+
+      suggestions.push({
+        title: pick.title,
+        description: pick.description || "",
+        ingredients: pick.ingredients || [],
+        discountMatches: pick.discountMatches || [],
+        isExisting: false,
+        recipeUrl: pick.url,
+        rating: ratingData?.value,
+        source: "website",
+      });
+    }
+
+    return suggestions;
+  } catch (err) {
+    console.error("Failed to get website suggestions:", err);
     return [];
   }
+}
+
+/**
+ * Get 5 recommendations: 2 from own recipes + 3 from websites.
+ * Pass exclude to skip already-shown titles.
+ */
+export async function getRecommendations(
+  householdId: string,
+  exclude: string[] = [],
+): Promise<Suggestion[]> {
+  const discounts = getCurrentDiscounts();
+
+  // 1. Get 2 own recipe suggestions (fast, no AI)
+  const ownSuggestions = getOwnRecipeSuggestions(householdId, discounts, exclude);
+  console.log(`Generated ${ownSuggestions.length} own recipe suggestions`);
+
+  // 2. Get 3 website suggestions (scraping + AI)
+  const allExclude = [...exclude, ...ownSuggestions.map((s) => s.title)];
+  const websiteSuggestions = await getWebsiteSuggestions(
+    householdId,
+    discounts,
+    allExclude,
+  );
+  console.log(`Generated ${websiteSuggestions.length} website suggestions`);
+
+  return [...ownSuggestions, ...websiteSuggestions];
 }
 
 /**
@@ -206,22 +336,15 @@ export function getCachedSuggestions(householdId: string): Suggestion[] {
 }
 
 /**
- * Pre-generate and cache 10 suggestions for a household.
- * Called after discount refresh.
+ * Pre-generate and cache suggestions for a household.
  */
-export async function refreshCachedSuggestions(householdId: string): Promise<void> {
-  const now = new Date();
-  const day = now.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + diff);
-  monday.setHours(0, 0, 0, 0);
-  const weekStart = monday.toISOString().split("T")[0];
-
+export async function refreshCachedSuggestions(
+  householdId: string,
+): Promise<void> {
   try {
-    const suggestions = await getRecommendations(householdId, weekStart);
+    const suggestions = await getRecommendations(householdId);
 
-    // Clear old cached suggestions for this household
+    // Clear old cached suggestions
     db.delete(cachedSuggestion)
       .where(eq(cachedSuggestion.householdId, householdId))
       .run();
@@ -237,9 +360,14 @@ export async function refreshCachedSuggestions(householdId: string): Promise<voi
         .run();
     }
 
-    console.log(`Cached ${suggestions.length} suggestions for household ${householdId}`);
+    console.log(
+      `Cached ${suggestions.length} suggestions for household ${householdId}`,
+    );
   } catch (err) {
-    console.error(`Failed to cache suggestions for household ${householdId}:`, err);
+    console.error(
+      `Failed to cache suggestions for household ${householdId}:`,
+      err,
+    );
   }
 }
 
@@ -247,7 +375,6 @@ export async function refreshCachedSuggestions(householdId: string): Promise<voi
  * Pre-generate suggestions for all households.
  */
 export async function refreshAllCachedSuggestions(): Promise<void> {
-  // Get all unique household IDs from the member table
   const households = db
     .select({ organizationId: member.organizationId })
     .from(member)
