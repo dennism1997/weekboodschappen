@@ -6,9 +6,9 @@ Weekly grocery shopping planner for Dutch households. Self-hosted PWA at `boodsc
 
 The app runs on a single port (default `6883`). WebSocket (Socket.IO) traffic for real-time shopping sync uses the same port — no additional ports need to be opened.
 
-| Service | Port | Protocol |
-|---------|------|----------|
-| HTTP + WebSocket | 6883 | TCP |
+| Service          | Port | Protocol |
+|------------------|------|----------|
+| HTTP + WebSocket | 6883 | TCP      |
 
 ### Router / Firewall
 
