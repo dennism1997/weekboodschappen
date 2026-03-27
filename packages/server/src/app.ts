@@ -16,6 +16,7 @@ import listRoutes from "./routes/lists.js";
 import stapleRoutes from "./routes/staples.js";
 import storeRoutes from "./routes/stores.js";
 import discountRoutes from "./routes/discounts.js";
+import setupRoutes from "./routes/setup.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -45,6 +46,7 @@ app.all("/api/auth/*splat", authLimiter, toNodeHandler(auth));
 app.use(express.json());
 
 // Routes
+app.use("/api/setup", setupRoutes);
 app.use("/api/recipes", recipeRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/lists", listRoutes);
