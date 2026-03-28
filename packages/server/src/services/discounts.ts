@@ -312,7 +312,7 @@ export async function fetchJumboDiscounts(): Promise<NormalizedDiscount[]> {
 async function fetchJumboDiscountsViaBrowser(): Promise<NormalizedDiscount[]> {
   try {
     const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: true });
+    const browser = await chromium.launch({ channel: "chromium" });
     const page = await browser.newPage();
 
     await page.goto("https://www.jumbo.com/aanbiedingen", {

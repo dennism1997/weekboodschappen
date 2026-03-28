@@ -161,7 +161,7 @@ function findRatingInJsonLd(data: any): { value: number; count: number } | null 
 }
 
 async function fetchWithBrowser(url: string): Promise<string> {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ channel: "chromium" });
   try {
     const context = await browser.newContext({
       userAgent: BROWSER_HEADERS["User-Agent"],
