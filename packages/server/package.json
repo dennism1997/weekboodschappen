@@ -11,13 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/db/seed.ts",
     "db:reset": "rm -f ${DATABASE_PATH:-./data/weekboodschappen.db} ${DATABASE_PATH:-./data/weekboodschappen.db}-wal ${DATABASE_PATH:-./data/weekboodschappen.db}-shm",
-    "typecheck": "tsc --noEmit"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "playwright"
-    ]
+    "typecheck": "tsc --noEmit",
+    "postinstall": "pnpm exec playwright install --with-deps"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
