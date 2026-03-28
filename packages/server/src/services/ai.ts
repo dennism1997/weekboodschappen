@@ -3,6 +3,12 @@ import { DEFAULT_CATEGORIES, cacheCategory } from "../utils/categories.js";
 
 const client = new Anthropic();
 
+let aiCallCount = 0;
+
+export function getAICallCount(): number {
+  return aiCallCount;
+}
+
 /**
  * Categorize a batch of ingredient names into Dutch supermarket categories using Claude.
  * Results are cached in-memory for future lookups.
@@ -11,6 +17,8 @@ export async function categorizeBatchWithAI(
   ingredientNames: string[],
 ): Promise<Record<string, string>> {
   if (ingredientNames.length === 0) return {};
+
+  aiCallCount++;
 
   const response = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
