@@ -57,6 +57,13 @@
       "when": 1774691543340,
       "tag": "0007_chief_talkback",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1774691543341,
+      "tag": "0008_set_existing_orgs_active",
+      "breakpoints": true
     }
   ]
 }
