@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
-import { Calendar, ClipboardCheck, BookOpen, ShoppingCart, Settings } from "lucide-react";
+import { Calendar, ClipboardCheck, BookOpen, ShoppingCart, Settings, Shield } from "lucide-react";
+import { useAuth } from "../hooks/useAuth.js";
 
 const navItems = [
   { to: "/planner", label: "Plan", icon: Calendar },
@@ -10,11 +11,17 @@ const navItems = [
 ];
 
 export default function BottomNav() {
+  const { isAdmin } = useAuth();
+
+  const items = isAdmin
+    ? [...navItems, { to: "/admin", label: "Admin", icon: Shield }]
+    : navItems;
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 border-t border-ios-separator bg-[rgba(249,249,249,0.94)] backdrop-blur-[20px]"
          style={{ paddingBottom: "env(safe-area-inset-bottom, 8px)" }}>
       <div className="mx-auto flex max-w-lg justify-around">
-        {navItems.map((item) => (
+        {items.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

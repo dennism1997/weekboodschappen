@@ -12,6 +12,9 @@ import Login from "./pages/Login.js";
 import Setup from "./pages/Setup.js";
 import Invite from "./pages/Invite.js";
 import Recover from "./pages/Recover.js";
+import Register from "./pages/Register.js";
+import Waiting from "./pages/Waiting.js";
+import Admin from "./pages/Admin.js";
 import NotFound from "./pages/NotFound.js";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -28,6 +31,15 @@ export default function App() {
       <Route path="/invite/:token" element={<Invite />} />
       <Route path="/recover/:token" element={<Recover />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
+      <Route
+        path="/waiting"
+        element={
+          <ProtectedRoute>
+            <Waiting />
+          </ProtectedRoute>
+        }
+      />
       <Route
         element={
           <ProtectedRoute>
@@ -43,6 +55,7 @@ export default function App() {
         <Route path="/recipes" element={<Recipes />} />
         <Route path="/recipes/:id" element={<RecipeDetail />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/admin" element={<Admin />} />
       </Route>
       <Route path="*" element={<NotFound />} />
     </Routes>

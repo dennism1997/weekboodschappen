@@ -115,6 +115,13 @@ export default function Login() {
             Passkey verloren? Gebruik herstelcode
           </button>
         )}
+
+        <button
+          onClick={() => navigate("/register")}
+          className="w-full text-center text-[13px] text-accent"
+        >
+          Nog geen account? Toegang aanvragen
+        </button>
       </div>
     </div>
   );
