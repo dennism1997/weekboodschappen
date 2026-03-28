@@ -5,7 +5,7 @@ import app from "./app.js";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import {db} from "./db/connection.js";
 import {initScheduler} from "./jobs/scheduler.js";
-import {initSocketIO} from "./websocket";
+import {initSocketIO} from "./websocket/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || "6883", 10);
