@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#B4A0ED"/>
+  <g transform="translate(234,231) scale(1.15)" fill="none" stroke="white" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <!-- cart handle bar - curved -->
+    <path d="M-85,-30 L-105,-65 L-145,-65" stroke-width="16"/>
+    <!-- cart body - rounder shape -->
+    <path d="M-85,-30 L-55,80 L105,80 L130,-30 Z" fill="none" stroke="white" stroke-width="16"/>
+    <!-- wheels - outline style -->
+    <circle cx="-35" cy="110" r="18" fill="none" stroke="white" stroke-width="14"/>
+    <circle cx="75" cy="110" r="18" fill="none" stroke="white" stroke-width="14"/>
+  </g>
+</svg>
