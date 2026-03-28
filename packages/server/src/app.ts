@@ -21,6 +21,7 @@ import inviteRoutes from "./routes/invite.js";
 import recoveryRoutes from "./routes/recovery.js";
 import registerRoutes from "./routes/register.js";
 import websiteRoutes from "./routes/websites.js";
+import adminRoutes from "./routes/admin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -61,6 +62,7 @@ app.use("/api/staples", stapleRoutes);
 app.use("/api/stores", storeRoutes);
 app.use("/api/discounts", discountRoutes);
 app.use("/api/websites", websiteRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/api/health", (_req, res) => {
   try {
