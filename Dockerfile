@@ -29,29 +29,30 @@ RUN pnpm --filter @weekboodschappen/server build
 # Production
 FROM node:24-slim AS production
 RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
-WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/server/package.json packages/server/
-COPY packages/client/package.json packages/client/
+RUN mkdir -p /app /data && chown node:node /app /data
+WORKDIR /app
+USER node
+
+COPY --chown=node:node package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+COPY --chown=node:node packages/server/package.json packages/server/
+COPY --chown=node:node packages/client/package.json packages/client/
 RUN pnpm install --frozen-lockfile --prod
 
 # Install Playwright Chromium and its system dependencies
+USER root
 RUN pnpm --filter @weekboodschappen/server exec playwright install --with-deps chromium
+USER node
 
-COPY --from=build-server /app/packages/server/dist ./packages/server/dist
-COPY --from=build-server /app/packages/server/migrations ./packages/server/migrations
-COPY --from=build-client /app/packages/client/dist ./packages/client/dist
+COPY --chown=node:node --from=build-server /app/packages/server/dist ./packages/server/dist
+COPY --chown=node:node --from=build-server /app/packages/server/migrations ./packages/server/migrations
+COPY --chown=node:node --from=build-client /app/packages/client/dist ./packages/client/dist
 
 ENV NODE_ENV=production
 ENV PORT=6883
 ENV DATABASE_PATH=/data/weekboodschappen.db
 
 EXPOSE 6883
-
-RUN mkdir -p /data && chown -R node:node /app /data
 VOLUME ["/data"]
-
-USER node
 
 CMD ["node", "packages/server/dist/index.js"]
