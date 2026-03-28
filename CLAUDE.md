@@ -1,1 +1,2 @@
-always use pnpm instead of npm, so use `pnpm exec` instead of `npx`.
+- always use pnpm instead of npm, so use `pnpm exec` instead of `npx`.
+- use the typescript lsp

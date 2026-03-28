@@ -19,7 +19,9 @@ import discountRoutes from "./routes/discounts.js";
 import setupRoutes from "./routes/setup.js";
 import inviteRoutes from "./routes/invite.js";
 import recoveryRoutes from "./routes/recovery.js";
+import registerRoutes from "./routes/register.js";
 import websiteRoutes from "./routes/websites.js";
+import adminRoutes from "./routes/admin.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +54,7 @@ app.use(express.json());
 app.use("/api/setup", setupRoutes);
 app.use("/api/invite", inviteRoutes);
 app.use("/api/recovery", recoveryRoutes);
+app.use("/api/register", registerRoutes);
 app.use("/api/recipes", recipeRoutes);
 app.use("/api/plans", planRoutes);
 app.use("/api/lists", listRoutes);
@@ -59,6 +62,7 @@ app.use("/api/staples", stapleRoutes);
 app.use("/api/stores", storeRoutes);
 app.use("/api/discounts", discountRoutes);
 app.use("/api/websites", websiteRoutes);
+app.use("/api/admin", adminRoutes);
 
 app.get("/api/health", (_req, res) => {
   try {

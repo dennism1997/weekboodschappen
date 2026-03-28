@@ -18,6 +18,19 @@ export async function apiFetch<T>(
     throw new Error("Unauthorized");
   }
 
+  if (res.status === 403) {
+    const body = await res.json().catch(() => ({}));
+    if (body.error === "HOUSEHOLD_PENDING") {
+      window.location.href = "/waiting";
+      throw new Error("Household pending approval");
+    }
+    if (body.error === "HOUSEHOLD_DEACTIVATED") {
+      window.location.href = "/waiting";
+      throw new Error("Household deactivated");
+    }
+    throw new Error(body.error || "Forbidden");
+  }
+
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || `Request failed: ${res.status}`);

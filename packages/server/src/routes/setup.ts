@@ -49,6 +49,7 @@ router.post("/", async (req, res) => {
     name: householdName,
     slug: crypto.randomUUID().slice(0, 8),
     createdAt: now,
+    status: "active",
   });
 
   await db.insert(member).values({
