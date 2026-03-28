@@ -1,5 +1,5 @@
 FROM node:24-slim AS base
-RUN corepack enable && corepack prepare pnpm@10.28.2 --activate
+RUN corepack enable && corepack prepare pnpm@latest-10 --activate
 WORKDIR /app
 
 # Install system dependencies for better-sqlite3 and playwright
