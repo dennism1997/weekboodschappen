@@ -1,14 +1,10 @@
-import { Router } from "express";
+import {Router} from "express";
 import Anthropic from "@anthropic-ai/sdk";
-import { db } from "../db/connection.js";
-import {
-  groceryList,
-  groceryItem,
-  weeklyPlan,
-} from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import { recordShoppingTrip } from "../services/learning.js";
+import {db} from "../db/connection.js";
+import {groceryItem, groceryList, weeklyPlan,} from "../db/schema.js";
+import {and, eq} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {recordShoppingTrip} from "../services/learning.js";
 
 const ai = new Anthropic();
 

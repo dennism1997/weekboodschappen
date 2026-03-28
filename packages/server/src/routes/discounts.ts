@@ -1,12 +1,9 @@
-import { Router } from "express";
-import { db } from "../db/connection.js";
-import { productDiscount } from "../db/schema.js";
-import { and, sql } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import {
-  refreshAllDiscounts,
-  matchDiscountsToIngredients,
-} from "../services/discounts.js";
+import {Router} from "express";
+import {db} from "../db/connection.js";
+import {productDiscount} from "../db/schema.js";
+import {and, sql} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {matchDiscountsToIngredients, refreshAllDiscounts,} from "../services/discounts.js";
 
 const router = Router();
 router.use(requireAuth);

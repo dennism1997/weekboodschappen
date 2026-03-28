@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import {integer, real, sqliteTable, text} from "drizzle-orm/sqlite-core";
 
 // Re-export Better Auth tables so Drizzle migrations include them
 export * from "./auth-schema.js";

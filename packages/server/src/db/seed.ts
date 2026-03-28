@@ -1,6 +1,6 @@
-import { db } from "./connection.js";
-import { storeConfig } from "./schema.js";
-import { eq, and } from "drizzle-orm";
+import {db} from "./connection.js";
+import {storeConfig} from "./schema.js";
+import {and, eq} from "drizzle-orm";
 
 const DEFAULT_CATEGORIES = [
   "Groente & Fruit",

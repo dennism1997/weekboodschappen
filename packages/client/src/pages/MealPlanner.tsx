@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark, Trash2, Pencil, Plus, RefreshCw } from "lucide-react";
-import { apiFetch } from "../api/client";
-import { useAuth } from "../hooks/useAuth";
+import {useEffect, useRef, useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {Bookmark, Pencil, Plus, RefreshCw, Trash2} from "lucide-react";
+import {apiFetch} from "../api/client";
+import {useAuth} from "../hooks/useAuth";
 
 interface Suggestion {
   title: string;

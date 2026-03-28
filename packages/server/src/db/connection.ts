@@ -1,8 +1,8 @@
-import Database, { type Database as DatabaseType } from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
+import Database, {type Database as DatabaseType} from "better-sqlite3";
+import {drizzle} from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema.js";
-import { dirname } from "node:path";
-import { mkdirSync } from "node:fs";
+import {dirname} from "node:path";
+import {mkdirSync} from "node:fs";
 
 const dbPath = process.env.DATABASE_PATH || "./data/weekboodschappen.db";
 

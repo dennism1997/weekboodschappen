@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import {chromium} from "playwright";
 
 const BROWSER_HEADERS: Record<string, string> = {
   "User-Agent":
@@ -133,7 +133,7 @@ function extractRatingFromHtml(html: string): { value: number; count: number } |
       const rating = findRatingInJsonLd(data);
       if (rating) return rating;
     } catch {
-      continue;
+
     }
   }
   return null;

@@ -1,6 +1,6 @@
-import { useState, useRef } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "../api/client";
+import {useRef, useState} from "react";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {apiFetch} from "../api/client";
 
 const CATEGORIES = [
   "Groente & Fruit",

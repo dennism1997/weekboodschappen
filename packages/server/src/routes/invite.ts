@@ -1,10 +1,10 @@
-import { Router } from "express";
+import {Router} from "express";
 import crypto from "node:crypto";
-import { db } from "../db/connection.js";
-import { invitation, member, organization, user, session } from "../db/auth-schema.js";
-import { eq, and, desc } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import { auth } from "../auth.js";
+import {db} from "../db/connection.js";
+import {invitation, member, organization, session, user} from "../db/auth-schema.js";
+import {and, desc, eq} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {auth} from "../auth.js";
 
 const router = Router();
 

@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from "express";
-import { fromNodeHeaders } from "better-auth/node";
-import { auth } from "../auth.js";
-import { db } from "../db/connection.js";
-import { organization } from "../db/auth-schema.js";
-import { eq } from "drizzle-orm";
+import {NextFunction, Request, Response} from "express";
+import {fromNodeHeaders} from "better-auth/node";
+import {auth} from "../auth.js";
+import {db} from "../db/connection.js";
+import {organization} from "../db/auth-schema.js";
+import {eq} from "drizzle-orm";
 
 export interface AuthPayload {
   userId: string;

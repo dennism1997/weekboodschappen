@@ -1,6 +1,6 @@
-import { NavLink } from "react-router-dom";
-import { Calendar, ClipboardCheck, BookOpen, ShoppingCart, Settings, Shield } from "lucide-react";
-import { useAuth } from "../hooks/useAuth.js";
+import {NavLink} from "react-router-dom";
+import {BookOpen, Calendar, ClipboardCheck, Settings, Shield, ShoppingCart} from "lucide-react";
+import {useAuth} from "../hooks/useAuth.js";
 
 const navItems = [
   { to: "/planner", label: "Plan", icon: Calendar },

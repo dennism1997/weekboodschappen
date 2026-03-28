@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { DEFAULT_CATEGORIES, cacheCategory } from "../utils/categories.js";
+import {cacheCategory, DEFAULT_CATEGORIES} from "../utils/categories.js";
 
 const client = new Anthropic();
 

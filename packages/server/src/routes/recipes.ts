@@ -1,12 +1,12 @@
-import { Router } from "express";
-import { db } from "../db/connection.js";
-import { recipe, weeklyPlanRecipe } from "../db/schema.js";
-import { eq, and, like } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import { scrapeRecipe } from "../services/scraper.js";
-import { categorizeBatchWithAI } from "../services/ai.js";
-import { categorizeIngredientSync } from "../utils/categories.js";
-import { validate, scrapeRecipeSchema } from "../validation/schemas.js";
+import {Router} from "express";
+import {db} from "../db/connection.js";
+import {recipe, weeklyPlanRecipe} from "../db/schema.js";
+import {and, eq, like} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {scrapeRecipe} from "../services/scraper.js";
+import {categorizeBatchWithAI} from "../services/ai.js";
+import {categorizeIngredientSync} from "../utils/categories.js";
+import {scrapeRecipeSchema, validate} from "../validation/schemas.js";
 
 const router = Router();
 router.use(requireAuth);

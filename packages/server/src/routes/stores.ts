@@ -1,9 +1,9 @@
-import { Router } from "express";
-import { db } from "../db/connection.js";
-import { storeConfig } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import { DEFAULT_CATEGORIES } from "../utils/categories.js";
+import {Router} from "express";
+import {db} from "../db/connection.js";
+import {storeConfig} from "../db/schema.js";
+import {and, eq} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {DEFAULT_CATEGORIES} from "../utils/categories.js";
 
 const router = Router();
 router.use(requireAuth);

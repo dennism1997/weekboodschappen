@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "../api/client.js";
+import {useEffect, useRef, useState} from "react";
+import {useQuery} from "@tanstack/react-query";
+import {apiFetch} from "../api/client.js";
 import RecipeCard from "../components/RecipeCard.js";
 
 interface Recipe {

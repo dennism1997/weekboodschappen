@@ -1,9 +1,9 @@
-import { Request, Response, NextFunction } from "express";
-import { fromNodeHeaders } from "better-auth/node";
-import { auth } from "../auth.js";
-import { db } from "../db/connection.js";
-import { user } from "../db/auth-schema.js";
-import { sql } from "drizzle-orm";
+import {NextFunction, Request, Response} from "express";
+import {fromNodeHeaders} from "better-auth/node";
+import {auth} from "../auth.js";
+import {db} from "../db/connection.js";
+import {user} from "../db/auth-schema.js";
+import {sql} from "drizzle-orm";
 
 export async function requireAdmin(req: Request, res: Response, next: NextFunction) {
   try {

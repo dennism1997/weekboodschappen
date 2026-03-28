@@ -1,30 +1,30 @@
 @import "tailwindcss";
 
 @theme {
-  --color-accent: #B4A0ED;
-  --color-accent-light: #F3EFFC;
-  --color-ios-bg: #F2F2F7;
-  --color-ios-surface: #FFFFFF;
-  --color-ios-separator: #C6C6C8;
-  --color-ios-label: #1D1D1F;
-  --color-ios-secondary: #86868B;
-  --color-ios-tertiary: #C7C7CC;
-  --color-ios-destructive: #FF3B30;
-  --color-ios-segmented-bg: #E9E9EB;
-  --color-ios-category-bg: #EFEFF4;
-  --color-source-recept-bg: #E8F0FE;
-  --color-source-recept-text: #4A7FE5;
-  --color-source-basis-bg: #FFF3E0;
-  --color-source-basis-text: #E09B3D;
-  --color-source-handmatig-bg: #F3E8FF;
-  --color-source-handmatig-text: #9B59B6;
+    --color-accent: #B4A0ED;
+    --color-accent-light: #F3EFFC;
+    --color-ios-bg: #F2F2F7;
+    --color-ios-surface: #FFFFFF;
+    --color-ios-separator: #C6C6C8;
+    --color-ios-label: #1D1D1F;
+    --color-ios-secondary: #86868B;
+    --color-ios-tertiary: #C7C7CC;
+    --color-ios-destructive: #FF3B30;
+    --color-ios-segmented-bg: #E9E9EB;
+    --color-ios-category-bg: #EFEFF4;
+    --color-source-recept-bg: #E8F0FE;
+    --color-source-recept-text: #4A7FE5;
+    --color-source-basis-bg: #FFF3E0;
+    --color-source-basis-text: #E09B3D;
+    --color-source-handmatig-bg: #F3E8FF;
+    --color-source-handmatig-text: #9B59B6;
 }
 
 button, a {
-  cursor: pointer;
+    cursor: pointer;
 }
 
 button:not(:disabled):hover, a:hover {
-  filter: brightness(0.92);
-  transition: filter 0.15s ease;
+    filter: brightness(0.92);
+    transition: filter 0.15s ease;
 }

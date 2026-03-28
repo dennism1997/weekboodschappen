@@ -1,6 +1,6 @@
-import { db } from "../db/connection.js";
-import { productDiscount } from "../db/schema.js";
-import { eq, sql } from "drizzle-orm";
+import {db} from "../db/connection.js";
+import {productDiscount} from "../db/schema.js";
+import {eq, sql} from "drizzle-orm";
 
 // ---- Types ----
 

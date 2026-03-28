@@ -1,10 +1,10 @@
-import { Router } from "express";
+import {Router} from "express";
 import crypto from "node:crypto";
-import { db } from "../db/connection.js";
-import { user, organization, member } from "../db/auth-schema.js";
-import { count } from "drizzle-orm";
-import { auth } from "../auth.js";
-import { sendPushoverNotification } from "../services/pushover.js";
+import {db} from "../db/connection.js";
+import {member, organization, user} from "../db/auth-schema.js";
+import {count} from "drizzle-orm";
+import {auth} from "../auth.js";
+import {sendPushoverNotification} from "../services/pushover.js";
 
 const router = Router();
 

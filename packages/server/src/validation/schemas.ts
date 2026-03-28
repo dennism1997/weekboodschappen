@@ -1,5 +1,5 @@
-import { z } from "zod";
-import type { Request, Response, NextFunction } from "express";
+import {z} from "zod";
+import type {NextFunction, Request, Response} from "express";
 
 export const scrapeRecipeSchema = z.object({
   url: z.string().url(),

@@ -7,7 +7,8 @@
     "build": "pnpm --filter @weekboodschappen/server build && pnpm --filter @weekboodschappen/client build",
     "dev:server": "pnpm --filter @weekboodschappen/server dev",
     "dev:client": "pnpm --filter @weekboodschappen/client dev",
-    "db:reset": "pnpm --filter @weekboodschappen/server db:reset"
+    "db:reset": "pnpm --filter @weekboodschappen/server db:reset",
+    "test": "pnpm -r run test"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

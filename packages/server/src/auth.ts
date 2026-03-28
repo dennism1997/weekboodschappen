@@ -1,8 +1,8 @@
-import { betterAuth } from "better-auth";
-import { organization } from "better-auth/plugins/organization";
-import { passkey } from "@better-auth/passkey";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { db } from "./db/connection.js";
+import {betterAuth} from "better-auth";
+import {organization} from "better-auth/plugins/organization";
+import {passkey} from "@better-auth/passkey";
+import {drizzleAdapter} from "better-auth/adapters/drizzle";
+import {db} from "./db/connection.js";
 
 const SECRET = process.env.BETTER_AUTH_SECRET;
 if (!SECRET) {

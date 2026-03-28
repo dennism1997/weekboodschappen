@@ -1,14 +1,6 @@
-import { db } from "../db/connection.js";
-import {
-  groceryList,
-  groceryItem,
-  weeklyPlan,
-  weeklyPlanRecipe,
-  recipe,
-  shoppingHistory,
-  weeklyStaple,
-} from "../db/schema.js";
-import { eq, and, sql } from "drizzle-orm";
+import {db} from "../db/connection.js";
+import {groceryItem, groceryList, recipe, shoppingHistory, weeklyPlan, weeklyPlanRecipe, weeklyStaple,} from "../db/schema.js";
+import {and, eq, sql} from "drizzle-orm";
 
 /**
  * Record a completed shopping trip into shoppingHistory,
@@ -133,7 +125,8 @@ export function suggestStaples(householdId: string) {
  */
 export function getPreferenceSignals(householdId: string) {
   // frequentRecipes: recipes with timesCooked >= 3, sorted desc, limit 10
-  const frequentRecipes = db
+  // language=SQL format=false
+const frequentRecipes = db
     .select({
       id: recipe.id,
       title: recipe.title,
