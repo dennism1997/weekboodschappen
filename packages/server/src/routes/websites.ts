@@ -1,8 +1,8 @@
-import { Router } from "express";
-import { db } from "../db/connection.js";
-import { favoriteWebsite } from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
+import {Router} from "express";
+import {db} from "../db/connection.js";
+import {favoriteWebsite} from "../db/schema.js";
+import {and, eq} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
 
 const router = Router();
 router.use(requireAuth);

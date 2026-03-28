@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen } from "@testing-library/react";
-import { renderWithProviders } from "./setup.js";
+import {beforeEach, describe, expect, it, vi} from "vitest";
+import {screen} from "@testing-library/react";
+import {renderWithProviders} from "./setup.js";
 import Waiting from "../pages/Waiting.js";
 
 const authClientModule = await import("../lib/auth-client.js");

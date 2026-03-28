@@ -1,10 +1,9 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
-import { afterEach, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
-import { render } from "@testing-library/react";
-import type { ReactElement } from "react";
+import {cleanup, render} from "@testing-library/react";
+import {afterEach, vi} from "vitest";
+import {QueryClient, QueryClientProvider} from "@tanstack/react-query";
+import {MemoryRouter} from "react-router-dom";
+import type {ReactElement} from "react";
 
 afterEach(() => {
   cleanup();

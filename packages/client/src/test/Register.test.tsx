@@ -1,7 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import {beforeEach, describe, expect, it, vi} from "vitest";
+import {screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithProviders } from "./setup.js";
+import {renderWithProviders} from "./setup.js";
 import Register from "../pages/Register.js";
 
 describe("Register page", () => {

@@ -1,4 +1,4 @@
-import { API_BASE } from "../lib/constants.js";
+import {API_BASE} from "../lib/constants.js";
 
 export async function apiFetch<T>(
   path: string,

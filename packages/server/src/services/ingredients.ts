@@ -1,4 +1,4 @@
-import { categorizeIngredient } from "../utils/categories.js";
+import {categorizeIngredient} from "../utils/categories.js";
 
 interface ParsedIngredient {
   name: string;

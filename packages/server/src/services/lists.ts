@@ -1,16 +1,8 @@
-import { db } from "../db/connection.js";
-import {
-  weeklyPlan,
-  weeklyPlanRecipe,
-  recipe,
-  weeklyStaple,
-  groceryList,
-  groceryItem,
-  storeConfig,
-} from "../db/schema.js";
-import { eq, and } from "drizzle-orm";
-import { mergeQuantities, type MergeableItem } from "../utils/units.js";
-import { matchDiscountsToIngredients } from "./discounts.js";
+import {db} from "../db/connection.js";
+import {groceryItem, groceryList, recipe, storeConfig, weeklyPlan, weeklyPlanRecipe, weeklyStaple,} from "../db/schema.js";
+import {and, eq} from "drizzle-orm";
+import {type MergeableItem, mergeQuantities} from "../utils/units.js";
+import {matchDiscountsToIngredients} from "./discounts.js";
 
 /**
  * Generate a complete grocery list for a weekly plan.

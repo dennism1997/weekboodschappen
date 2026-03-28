@@ -1,1 +1,2 @@
-ALTER TABLE `organization` ADD `status` text DEFAULT 'waiting' NOT NULL;
+ALTER TABLE `organization`
+    ADD `status` text DEFAULT 'waiting' NOT NULL;

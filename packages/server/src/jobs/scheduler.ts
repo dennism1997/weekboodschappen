@@ -1,11 +1,11 @@
-import { schedule } from "node-cron";
-import { db } from "../db/connection.js";
-import { productDiscount, cachedSuggestion } from "../db/schema.js";
-import { sql } from "drizzle-orm";
-import { refreshAllDiscounts } from "../services/discounts.js";
-import { refreshAllCachedSuggestions } from "../services/recommendations.js";
-import { sendPushoverNotification } from "../services/pushover.js";
-import { statSync } from "node:fs";
+import {schedule} from "node-cron";
+import {db} from "../db/connection.js";
+import {cachedSuggestion, productDiscount} from "../db/schema.js";
+import {sql} from "drizzle-orm";
+import {refreshAllDiscounts} from "../services/discounts.js";
+import {refreshAllCachedSuggestions} from "../services/recommendations.js";
+import {sendPushoverNotification} from "../services/pushover.js";
+import {statSync} from "node:fs";
 
 const STALE_HOURS = 24;
 const DB_SIZE_WARNING_MB = 100;

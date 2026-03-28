@@ -1,29 +1,22 @@
-import { Router } from "express";
-import { db } from "../db/connection.js";
+import {Router} from "express";
+import {db} from "../db/connection.js";
+import {member, organization, passkey, session, user,} from "../db/auth-schema.js";
 import {
-  organization,
-  member,
-  user,
-  session,
-  account,
-  passkey,
-} from "../db/auth-schema.js";
-import {
-  recipe,
-  weeklyPlan,
-  weeklyPlanRecipe,
-  groceryList,
-  groceryItem,
-  weeklyStaple,
-  storeConfig,
-  cachedSuggestion,
-  favoriteWebsite,
-  shoppingHistory,
+    cachedSuggestion,
+    favoriteWebsite,
+    groceryItem,
+    groceryList,
+    recipe,
+    shoppingHistory,
+    storeConfig,
+    weeklyPlan,
+    weeklyPlanRecipe,
+    weeklyStaple,
 } from "../db/schema.js";
-import { eq, sql, desc, and, count } from "drizzle-orm";
-import { requireAdmin } from "../middleware/admin.js";
-import { getAICallCount } from "../services/ai.js";
-import { statSync } from "node:fs";
+import {and, count, desc, eq, sql} from "drizzle-orm";
+import {requireAdmin} from "../middleware/admin.js";
+import {getAICallCount} from "../services/ai.js";
+import {statSync} from "node:fs";
 
 const router = Router();
 

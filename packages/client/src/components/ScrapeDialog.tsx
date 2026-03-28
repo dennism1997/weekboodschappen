@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { apiFetch } from "../api/client.js";
+import {useState} from "react";
+import {apiFetch} from "../api/client.js";
 
 interface ScrapeDialogProps {
   open: boolean;

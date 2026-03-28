@@ -1,5 +1,5 @@
-import { useAuth } from "../hooks/useAuth.js";
-import { useNavigate } from "react-router-dom";
+import {useAuth} from "../hooks/useAuth.js";
+import {useNavigate} from "react-router-dom";
 
 export default function Waiting() {
   const { authenticated, loading, household } = useAuth();

@@ -1,18 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { db } from "../db/connection.js";
-import {
-  recipe,
-  productDiscount,
-  favoriteWebsite,
-  cachedSuggestion,
-} from "../db/schema.js";
-import { eq, and, gte, lte } from "drizzle-orm";
-import { member } from "../db/auth-schema.js";
-import {
-  scrapeRecipeListings,
-  getRecipeRating,
-  type ScrapedRecipeListing,
-} from "./website-scraper.js";
+import {db} from "../db/connection.js";
+import {cachedSuggestion, favoriteWebsite, productDiscount, recipe,} from "../db/schema.js";
+import {and, eq, gte, lte} from "drizzle-orm";
+import {member} from "../db/auth-schema.js";
+import {getRecipeRating, type ScrapedRecipeListing, scrapeRecipeListings,} from "./website-scraper.js";
 
 const client = new Anthropic();
 

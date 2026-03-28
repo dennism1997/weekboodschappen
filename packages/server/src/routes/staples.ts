@@ -1,9 +1,9 @@
-import { Router } from "express";
-import { db } from "../db/connection.js";
-import { weeklyStaple, shoppingHistory } from "../db/schema.js";
-import { eq, and, sql } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import { validate, createStapleSchema } from "../validation/schemas.js";
+import {Router} from "express";
+import {db} from "../db/connection.js";
+import {shoppingHistory, weeklyStaple} from "../db/schema.js";
+import {and, eq, sql} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {createStapleSchema, validate} from "../validation/schemas.js";
 
 const router = Router();
 router.use(requireAuth);

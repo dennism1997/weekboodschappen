@@ -1,6 +1,6 @@
-import { scrapeRecipe as scrapeRecipeFromHtml } from "recipe-scrapers";
-import { chromium } from "playwright";
-import { parseIngredient } from "./ingredients.js";
+import {scrapeRecipe as scrapeRecipeFromHtml} from "recipe-scrapers";
+import {chromium} from "playwright";
+import {parseIngredient} from "./ingredients.js";
 
 const BROWSER_HEADERS = {
   "User-Agent":

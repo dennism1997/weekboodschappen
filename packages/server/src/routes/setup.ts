@@ -1,11 +1,11 @@
-import { Router } from "express";
+import {Router} from "express";
 import crypto from "node:crypto";
-import { db } from "../db/connection.js";
-import { user, organization, member, recoveryToken } from "../db/auth-schema.js";
-import { count } from "drizzle-orm";
-import { auth } from "../auth.js";
-import { refreshCachedSuggestions } from "../services/recommendations.js";
-import { favoriteWebsite } from "../db/schema.js";
+import {db} from "../db/connection.js";
+import {member, organization, recoveryToken, user} from "../db/auth-schema.js";
+import {count} from "drizzle-orm";
+import {auth} from "../auth.js";
+import {refreshCachedSuggestions} from "../services/recommendations.js";
+import {favoriteWebsite} from "../db/schema.js";
 
 const router = Router();
 

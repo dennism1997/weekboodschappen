@@ -1,6 +1,6 @@
-import { useQuery } from "@tanstack/react-query";
-import { authClient } from "../lib/auth-client.js";
-import { apiFetch } from "../api/client.js";
+import {useQuery} from "@tanstack/react-query";
+import {authClient} from "../lib/auth-client.js";
+import {apiFetch} from "../api/client.js";
 
 export function useAuth() {
   const session = authClient.useSession();

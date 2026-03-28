@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "../api/client.js";
-import { Shield, Users, Activity, ChevronDown, ChevronUp, Trash2, RotateCcw } from "lucide-react";
+import {useState} from "react";
+import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query";
+import {apiFetch} from "../api/client.js";
+import {Activity, ChevronDown, ChevronUp, RotateCcw, Shield, Trash2, Users} from "lucide-react";
 
 interface HouseholdMember {
   id: string;

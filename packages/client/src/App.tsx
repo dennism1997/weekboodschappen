@@ -1,5 +1,5 @@
-import { Routes, Route, Navigate } from "react-router-dom";
-import { useAuth } from "./hooks/useAuth.js";
+import {Navigate, Route, Routes} from "react-router-dom";
+import {useAuth} from "./hooks/useAuth.js";
 import Layout from "./components/Layout.js";
 import MealPlanner from "./pages/MealPlanner.js";
 import GroceryList from "./pages/GroceryList.js";

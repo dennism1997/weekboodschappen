@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { authClient } from "../lib/auth-client.js";
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {authClient} from "../lib/auth-client.js";
 
 export default function Register() {
   const [name, setName] = useState("");

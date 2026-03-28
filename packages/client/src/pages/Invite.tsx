@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { authClient } from "../lib/auth-client.js";
+import {useState} from "react";
+import {useNavigate, useParams} from "react-router-dom";
+import {useQuery} from "@tanstack/react-query";
+import {authClient} from "../lib/auth-client.js";
 
 export default function Invite() {
   const { token } = useParams<{ token: string }>();

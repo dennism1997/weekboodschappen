@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, useState } from "react";
-import { socket } from "../api/socket";
+import {useCallback, useEffect, useRef, useState} from "react";
+import {socket} from "../api/socket";
 
 export interface SocketEvent {
   type: string;

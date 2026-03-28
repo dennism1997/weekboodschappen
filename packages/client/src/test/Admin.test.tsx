@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
-import { renderWithProviders } from "./setup.js";
+import {beforeEach, describe, expect, it, vi} from "vitest";
+import {screen, waitFor} from "@testing-library/react";
+import {renderWithProviders} from "./setup.js";
 import Admin from "../pages/Admin.js";
 
 const { apiFetch } = await import("../api/client.js");

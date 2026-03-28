@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "../api/client";
-import { useOfflineQueue } from "../hooks/useOfflineQueue";
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {apiFetch} from "../api/client";
+import {useOfflineQueue} from "../hooks/useOfflineQueue";
 import DiscountBadge from "../components/DiscountBadge";
 
 interface DiscountInfo {

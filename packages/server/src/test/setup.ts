@@ -1,13 +1,13 @@
 import Database from "better-sqlite3";
-import { drizzle } from "drizzle-orm/better-sqlite3";
-import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import {drizzle} from "drizzle-orm/better-sqlite3";
+import {migrate} from "drizzle-orm/better-sqlite3/migrator";
 import * as schema from "../db/schema.js";
-import { user, organization, member, session, account } from "../db/auth-schema.js";
-import { join } from "node:path";
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import {account, member, organization, user} from "../db/auth-schema.js";
+import {join} from "node:path";
+import {mkdtempSync, rmSync} from "node:fs";
+import {tmpdir} from "node:os";
 import crypto from "node:crypto";
-import { vi } from "vitest";
+import {vi} from "vitest";
 
 // --- Types ---
 

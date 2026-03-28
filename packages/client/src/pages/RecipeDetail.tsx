@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "../api/client.js";
+import {useState} from "react";
+import {useNavigate, useParams} from "react-router-dom";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {apiFetch} from "../api/client.js";
 
 interface Ingredient {
   name: string;

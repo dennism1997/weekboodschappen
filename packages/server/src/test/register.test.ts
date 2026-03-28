@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { setupTestDb, teardownTestDb, getTestDb, setupAuthMock, createTestUser } from "./setup.js";
+import {afterAll, beforeAll, describe, expect, it} from "vitest";
+import {createTestUser, getTestDb, setupAuthMock, setupTestDb, teardownTestDb} from "./setup.js";
 
 setupAuthMock();
 setupTestDb();

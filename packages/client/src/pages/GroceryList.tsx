@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "../api/client";
+import {useState} from "react";
+import {useNavigate} from "react-router-dom";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {apiFetch} from "../api/client";
 import CategoryGroup from "../components/CategoryGroup";
 import GroceryItemRow from "../components/GroceryItemRow";
 

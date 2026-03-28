@@ -1,11 +1,11 @@
-import { Router } from "express";
+import {Router} from "express";
 import crypto from "node:crypto";
-import { db } from "../db/connection.js";
-import { recoveryToken, passkey, user, member, account } from "../db/auth-schema.js";
-import { eq, and, isNull } from "drizzle-orm";
-import { requireAuth } from "../middleware/auth.js";
-import { auth } from "../auth.js";
-import { hashPassword } from "better-auth/crypto";
+import {db} from "../db/connection.js";
+import {account, member, passkey, recoveryToken, user} from "../db/auth-schema.js";
+import {and, eq, isNull} from "drizzle-orm";
+import {requireAuth} from "../middleware/auth.js";
+import {auth} from "../auth.js";
+import {hashPassword} from "better-auth/crypto";
 
 const router = Router();
 
