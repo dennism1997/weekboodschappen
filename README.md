@@ -1,51 +1,17 @@
 # Weekboodschappen
 
-A self-hosted weekly meal planning and grocery shopping app built for Dutch households. Plan your meals, automatically generate shopping lists, and shop together in real-time.
+A self-hosted weekly meal planning and grocery shopping app for Dutch households.
 
 ## Features
 
-### Meal Planning
-- Plan recipes for each day of the week
-- Scrape recipes from any URL (leukerecepten.nl, ah.nl/allerhande, etc.)
-- AI-powered recipe suggestions based on current supermarket discounts
-- Save and manage your recipe collection with tags and cooking history
+- Plan meals for the week and auto-generate grocery lists from recipes
+- Scrape recipes from any URL and get AI-powered suggestions based on current discounts
+- Real-time shopping mode — check off items synced across all household members
+- Automatic discount matching from Albert Heijn and Jumbo
+- Passkey authentication, household invites, and admin approval for new households
+- PWA with offline support
 
-### Grocery Lists
-- Automatic list generation from your weekly meal plan
-- Items grouped and sorted by supermarket category (customizable per store)
-- Add staple items that recur every week (milk, bread, etc.)
-- Manual items for one-off purchases
-
-### Shopping Mode
-- Real-time sync between household members — check off items from any device
-- Items matched against current Albert Heijn and Jumbo discount offers
-- Optimized for mobile with a swipe-friendly interface
-
-### Household Management
-- Invite household members via shareable links
-- Passkey authentication (no passwords)
-- Admin panel for the app owner to approve new households, manage users, and monitor system health
-- Pushover notifications for admin alerts (new household requests, system issues)
-
-### Technical
-- Progressive Web App with offline support
-- SQLite database (single file, easy backups)
-- AI-powered ingredient categorization via Claude
-- Daily automatic discount refresh from Albert Heijn and Jumbo
-
-## Self-hosting
-
-### Ports & Networking
-
-The app runs on a single port (default `6883`). WebSocket (Socket.IO) traffic for real-time shopping sync uses the same port — no additional ports need to be opened.
-
-| Service          | Port | Protocol |
-|------------------|------|----------|
-| HTTP + WebSocket | 6883 | TCP      |
-
-### Router / Firewall
-
-Only port **443** (HTTPS) needs to be open on your router if Caddy handles TLS termination. Caddy automatically proxies WebSocket upgrade requests to the app.
+## Installation
 
 ### Docker Compose
 
@@ -72,7 +38,7 @@ volumes:
     app-data:
 ```
 
-#### Environment variables
+### Environment variables
 
 | Variable | Required | Description |
 |---|---|---|
@@ -84,13 +50,16 @@ volumes:
 | `PUSHOVER_USER_KEY` | No | Pushover user key for admin notifications |
 | `PUSHOVER_API_TOKEN` | No | Pushover app token for admin notifications |
 
-#### First-time setup
+### First-time setup
 
-1. Start the container
-2. Visit your URL — you'll be redirected to the setup page
-3. Enter your name and household name
-4. Save the recovery code shown (it's only displayed once)
-5. Set up a passkey for passwordless login
+1. Start the container and visit your URL
+2. Enter your name and household name
+3. Save the recovery code (only shown once)
+4. Set up a passkey for passwordless login
+
+### Networking
+
+The app runs on a single port (default `6883`). HTTP and WebSocket traffic share the same port. Behind a reverse proxy, only port 443 needs to be exposed.
 
 ## Development
 
@@ -103,10 +72,4 @@ pnpm run build      # production build
 
 ## Tech Stack
 
-- **Frontend**: React 19, React Router, React Query, Tailwind CSS, Vite, Socket.IO
-- **Backend**: Express 5, Drizzle ORM, SQLite (WAL mode), Socket.IO, node-cron
-- **Auth**: better-auth with passkey/WebAuthn support
-- **AI**: Anthropic Claude for ingredient categorization and recipe suggestions
-- **Scraping**: Playwright for recipe extraction, albert-heijn-wrapper and jumbo-wrapper for discounts
-- **Testing**: Vitest, supertest, React Testing Library
-- **CI/CD**: GitHub Actions, Docker, GHCR
+**Frontend:** React, React Query, Tailwind CSS, Vite | **Backend:** Express, Drizzle ORM, SQLite, Socket.IO | **Auth:** better-auth + passkeys | **AI:** Claude (Anthropic)
