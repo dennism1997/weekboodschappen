@@ -8,7 +8,7 @@ export function useAuth() {
 
   const { data: adminStatus } = useQuery({
     queryKey: ["admin-status"],
-    queryFn: () => apiFetch<{ isAdmin: boolean }>("/api/admin/status"),
+    queryFn: () => apiFetch<{ isAdmin: boolean }>("/admin/status"),
     enabled: !!session.data?.session,
     retry: false,
     staleTime: 5 * 60 * 1000,

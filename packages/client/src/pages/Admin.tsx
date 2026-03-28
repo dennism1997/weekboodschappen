@@ -48,22 +48,22 @@ export default function Admin() {
 
   const { data: households = [], isLoading: loadingHouseholds } = useQuery({
     queryKey: ["admin-households"],
-    queryFn: () => apiFetch<Household[]>("/api/admin/households"),
+    queryFn: () => apiFetch<Household[]>("/admin/households"),
   });
 
   const { data: users = [], isLoading: loadingUsers } = useQuery({
     queryKey: ["admin-users"],
-    queryFn: () => apiFetch<AdminUser[]>("/api/admin/users"),
+    queryFn: () => apiFetch<AdminUser[]>("/admin/users"),
   });
 
   const { data: system } = useQuery({
     queryKey: ["admin-system"],
-    queryFn: () => apiFetch<SystemHealth>("/api/admin/system"),
+    queryFn: () => apiFetch<SystemHealth>("/admin/system"),
   });
 
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      apiFetch(`/api/admin/households/${id}/status`, {
+      apiFetch(`/admin/households/${id}/status`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       }),
@@ -74,7 +74,7 @@ export default function Admin() {
 
   const deleteHousehold = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/api/admin/households/${id}`, { method: "DELETE" }),
+      apiFetch(`/admin/households/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-households"] });
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
@@ -84,7 +84,7 @@ export default function Admin() {
 
   const resetPasskey = useMutation({
     mutationFn: (id: string) =>
-      apiFetch(`/api/admin/users/${id}/reset-passkey`, { method: "POST" }),
+      apiFetch(`/admin/users/${id}/reset-passkey`, { method: "POST" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
     },
@@ -92,7 +92,7 @@ export default function Admin() {
 
   const removeMembership = useMutation({
     mutationFn: ({ userId, orgId }: { userId: string; orgId: string }) =>
-      apiFetch(`/api/admin/users/${userId}/membership/${orgId}`, { method: "DELETE" }),
+      apiFetch(`/admin/users/${userId}/membership/${orgId}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-households"] });
