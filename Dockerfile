@@ -40,7 +40,6 @@ COPY --from=build-server /app/packages/server/dist ./packages/server/dist
 COPY --from=build-server /app/packages/server/migrations ./packages/server/migrations
 COPY --from=build-client /app/packages/client/dist ./packages/client/dist
 
-RUN pnpm run postinstall
 
 ENV NODE_ENV=production
 ENV PORT=6883
