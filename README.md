@@ -1,8 +1,41 @@
 # Weekboodschappen
 
-Weekly grocery shopping planner for Dutch households. Self-hosted PWA at `boodschappen.mouwen.casa`.
+A self-hosted weekly meal planning and grocery shopping app built for Dutch households. Plan your meals, automatically generate shopping lists, and shop together in real-time.
 
-## Ports & Networking
+## Features
+
+### Meal Planning
+- Plan recipes for each day of the week
+- Scrape recipes from any URL (leukerecepten.nl, ah.nl/allerhande, etc.)
+- AI-powered recipe suggestions based on current supermarket discounts
+- Save and manage your recipe collection with tags and cooking history
+
+### Grocery Lists
+- Automatic list generation from your weekly meal plan
+- Items grouped and sorted by supermarket category (customizable per store)
+- Add staple items that recur every week (milk, bread, etc.)
+- Manual items for one-off purchases
+
+### Shopping Mode
+- Real-time sync between household members — check off items from any device
+- Items matched against current Albert Heijn and Jumbo discount offers
+- Optimized for mobile with a swipe-friendly interface
+
+### Household Management
+- Invite household members via shareable links
+- Passkey authentication (no passwords)
+- Admin panel for the app owner to approve new households, manage users, and monitor system health
+- Pushover notifications for admin alerts (new household requests, system issues)
+
+### Technical
+- Progressive Web App with offline support
+- SQLite database (single file, easy backups)
+- AI-powered ingredient categorization via Claude
+- Daily automatic discount refresh from Albert Heijn and Jumbo
+
+## Self-hosting
+
+### Ports & Networking
 
 The app runs on a single port (default `6883`). WebSocket (Socket.IO) traffic for real-time shopping sync uses the same port — no additional ports need to be opened.
 
@@ -59,12 +92,21 @@ volumes:
 4. Save the recovery code shown (it's only displayed once)
 5. Set up a passkey for passwordless login
 
-### Caddy (reverse proxy)
+## Development
 
-```
-boodschappen.mouwen.casa {
-    reverse_proxy app:6883
-}
+```bash
+pnpm install
+pnpm run dev        # starts server + client
+pnpm run test       # runs all tests
+pnpm run build      # production build
 ```
 
-Caddy's `reverse_proxy` supports WebSocket upgrades automatically — no extra configuration needed.
+## Tech Stack
+
+- **Frontend**: React 19, React Router, React Query, Tailwind CSS, Vite, Socket.IO
+- **Backend**: Express 5, Drizzle ORM, SQLite (WAL mode), Socket.IO, node-cron
+- **Auth**: better-auth with passkey/WebAuthn support
+- **AI**: Anthropic Claude for ingredient categorization and recipe suggestions
+- **Scraping**: Playwright for recipe extraction, albert-heijn-wrapper and jumbo-wrapper for discounts
+- **Testing**: Vitest, supertest, React Testing Library
+- **CI/CD**: GitHub Actions, Docker, GHCR
