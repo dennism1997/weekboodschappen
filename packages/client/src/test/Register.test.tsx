@@ -6,8 +6,7 @@ import Register from "../pages/Register.js";
 
 describe("Register page", () => {
   beforeEach(() => {
-    vi.restoreAllMocks();
-    global.fetch = vi.fn();
+    globalThis.fetch = vi.fn();
   });
 
   it("renders registration form", () => {
@@ -32,7 +31,7 @@ describe("Register page", () => {
 
   it("submits registration and transitions to passkey step", async () => {
     const user = userEvent.setup();
-    vi.mocked(global.fetch).mockResolvedValueOnce({
+    vi.mocked(globalThis.fetch).mockResolvedValueOnce({
       ok: true,
       json: async () => ({ success: true, userId: "new-id" }),
     } as Response);
@@ -49,7 +48,7 @@ describe("Register page", () => {
     await user.click(screen.getByText("Aanvragen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Passkey instellen")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Passkey instellen" })).toBeInTheDocument();
     });
   });
 });

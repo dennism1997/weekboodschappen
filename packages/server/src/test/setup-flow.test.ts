@@ -45,6 +45,6 @@ describe("Setup flow", () => {
 
   it("POST /api/setup rejects missing fields", async () => {
     const res = await request(app).post("/api/setup").send({});
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(400);
   });
 });

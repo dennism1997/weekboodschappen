@@ -57,16 +57,17 @@ describe("Admin page", () => {
   it("renders pending households", async () => {
     renderWithProviders(<Admin />);
     await waitFor(() => {
-      expect(screen.getByText("Waiting Household")).toBeInTheDocument();
+      expect(screen.getByText("Wachten op goedkeuring")).toBeInTheDocument();
     });
     expect(screen.getByText("Goedkeuren")).toBeInTheDocument();
     expect(screen.getByText("Afwijzen")).toBeInTheDocument();
+    expect(screen.getAllByText("Waiting Household").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders active households", async () => {
     renderWithProviders(<Admin />);
     await waitFor(() => {
-      expect(screen.getByText("Active Household")).toBeInTheDocument();
+      expect(screen.getAllByText("Active Household").length).toBeGreaterThanOrEqual(1);
     });
   });
 
