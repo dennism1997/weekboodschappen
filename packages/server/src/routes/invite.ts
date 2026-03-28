@@ -1,12 +1,83 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { db } from "../db/connection.js";
-import { invitation, member, organization } from "../db/auth-schema.js";
-import { eq, and } from "drizzle-orm";
+import { invitation, member, organization, user, session } from "../db/auth-schema.js";
+import { eq, and, desc } from "drizzle-orm";
 import { requireAuth } from "../middleware/auth.js";
 import { auth } from "../auth.js";
 
 const router = Router();
+
+// List household members with last session info — authenticated
+router.get("/members", requireAuth, async (req, res) => {
+  if (!req.user?.householdId) {
+    res.status(400).json({ error: "No active household" });
+    return;
+  }
+
+  const members = db
+    .select({
+      id: user.id,
+      name: user.name,
+      role: member.role,
+      joinedAt: member.createdAt,
+    })
+    .from(member)
+    .innerJoin(user, eq(member.userId, user.id))
+    .where(eq(member.organizationId, req.user.householdId))
+    .all();
+
+  const enriched = members.map((m) => {
+    const lastSession = db
+      .select({ createdAt: session.createdAt })
+      .from(session)
+      .where(eq(session.userId, m.id))
+      .orderBy(desc(session.createdAt))
+      .limit(1)
+      .get();
+
+    return {
+      ...m,
+      lastLogin: lastSession?.createdAt ?? null,
+    };
+  });
+
+  res.json(enriched);
+});
+
+// Remove member from household — authenticated, owner only
+router.delete("/members/:userId", requireAuth, async (req, res) => {
+  if (!req.user?.householdId) {
+    res.status(400).json({ error: "No active household" });
+    return;
+  }
+
+  // Check that the current user is the owner
+  const currentMembership = db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.userId, req.user.userId), eq(member.organizationId, req.user.householdId)))
+    .get();
+
+  if (currentMembership?.role !== "owner") {
+    res.status(403).json({ error: "Alleen de eigenaar kan leden verwijderen" });
+    return;
+  }
+
+  const targetUserId = req.params.userId as string;
+
+  // Can't remove yourself
+  if (targetUserId === req.user.userId) {
+    res.status(400).json({ error: "Je kunt jezelf niet verwijderen" });
+    return;
+  }
+
+  db.delete(member)
+    .where(and(eq(member.userId, targetUserId), eq(member.organizationId, req.user.householdId)))
+    .run();
+
+  res.json({ success: true });
+});
 
 // Create invite — authenticated
 router.post("/create", requireAuth, async (req, res) => {

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { apiFetch } from "../api/client";
-import { authClient } from "../lib/auth-client";
 import {
   DndContext,
   closestCenter,
@@ -25,6 +24,8 @@ import { CSS } from "@dnd-kit/utilities";
 interface Member {
   id: string;
   name: string;
+  role: string;
+  lastLogin: number | null;
 }
 
 interface FavoriteWebsite {
@@ -111,6 +112,7 @@ export default function Settings() {
   const [categories, setCategories] = useState<string[]>(DEFAULT_CATEGORIES);
   const [recoveryUrl, setRecoveryUrl] = useState("");
   const [resettingUserId, setResettingUserId] = useState("");
+  const [removingUserId, setRemovingUserId] = useState("");
 
   // Favorite websites
   const [newWebsiteUrl, setNewWebsiteUrl] = useState("");
@@ -126,16 +128,7 @@ export default function Settings() {
 
   const { data: members = [] } = useQuery({
     queryKey: ["members", household?.id],
-    queryFn: async () => {
-      const result = await authClient.organization.getFullOrganization();
-      if (result.data) {
-        return result.data.members.map((m: any) => ({
-          id: m.user.id,
-          name: m.user.name || m.user.email,
-        })) as Member[];
-      }
-      return [] as Member[];
-    },
+    queryFn: () => apiFetch<Member[]>("/invite/members"),
     enabled: !!household,
   });
 
@@ -274,6 +267,29 @@ export default function Settings() {
     }
   };
 
+  const removeMember = async (memberId: string) => {
+    setRemovingUserId(memberId);
+    try {
+      await apiFetch(`/invite/members/${memberId}`, { method: "DELETE" });
+      queryClient.invalidateQueries({ queryKey: ["members"] });
+    } catch {
+      // ignore
+    } finally {
+      setRemovingUserId("");
+    }
+  };
+
+  const timeAgo = (date: number | string | null) => {
+    if (!date) return "Nooit";
+    const ms = Date.now() - new Date(date).getTime();
+    const minutes = Math.floor(ms / 60000);
+    if (minutes < 60) return `${minutes}m geleden`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}u geleden`;
+    const days = Math.floor(hours / 24);
+    return `${days}d geleden`;
+  };
+
   const resetMemberPasskey = async (memberId: string) => {
     setResettingUserId(memberId);
     try {
@@ -367,24 +383,40 @@ export default function Settings() {
           members.map((m, idx) => (
             <div
               key={m.id}
-              className={`flex min-h-[44px] items-center gap-3 px-4 py-3 ${
+              className={`px-4 py-3 ${
                 idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
               }`}
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-light text-[13px] font-semibold text-accent">
-                {m.name.charAt(0).toUpperCase()}
-              </span>
-              <span className="text-[17px] text-ios-label">
-                {m.name}{m.id === user?.id && " (jij)"}
-              </span>
+              <div className="flex min-h-[44px] items-center gap-3">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent-light text-[13px] font-semibold text-accent">
+                  {m.name.charAt(0).toUpperCase()}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-[17px] text-ios-label">
+                    {m.name}{m.id === user?.id && " (jij)"}
+                  </span>
+                  <p className="text-[12px] text-ios-secondary">
+                    Laatst actief: {timeAgo(m.lastLogin)}
+                  </p>
+                </div>
+              </div>
               {m.id !== user?.id && (
-                <button
-                  onClick={() => resetMemberPasskey(m.id)}
-                  disabled={resettingUserId === m.id}
-                  className="ml-auto rounded-[8px] bg-ios-category-bg px-3 py-1 text-[13px] text-ios-secondary"
-                >
-                  {resettingUserId === m.id ? "Bezig..." : "Reset passkey"}
-                </button>
+                <div className="mt-2 flex gap-2 pl-10">
+                  <button
+                    onClick={() => resetMemberPasskey(m.id)}
+                    disabled={resettingUserId === m.id}
+                    className="rounded-[8px] bg-ios-category-bg px-3 py-1 text-[13px] text-ios-secondary"
+                  >
+                    {resettingUserId === m.id ? "Bezig..." : "Reset passkey"}
+                  </button>
+                  <button
+                    onClick={() => removeMember(m.id)}
+                    disabled={removingUserId === m.id}
+                    className="rounded-[8px] px-3 py-1 text-[13px] text-ios-destructive disabled:opacity-50"
+                  >
+                    {removingUserId === m.id ? "Bezig..." : "Verwijderen"}
+                  </button>
+                </div>
               )}
             </div>
           ))
