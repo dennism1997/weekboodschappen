@@ -13,6 +13,12 @@
     "db:reset": "rm -f ${DATABASE_PATH:-./data/weekboodschappen.db} ${DATABASE_PATH:-./data/weekboodschappen.db}-wal ${DATABASE_PATH:-./data/weekboodschappen.db}-shm",
     "typecheck": "tsc --noEmit"
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "playwright"
+    ]
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",
     "@better-auth/passkey": "^1.5.6",

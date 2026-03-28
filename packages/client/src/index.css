@@ -19,3 +19,8 @@
   --color-source-handmatig-bg: #F3E8FF;
   --color-source-handmatig-text: #9B59B6;
 }
+
+button:not(:disabled):hover {
+  filter: brightness(0.92);
+  transition: filter 0.15s ease;
+}
