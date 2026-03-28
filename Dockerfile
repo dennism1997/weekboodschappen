@@ -37,7 +37,7 @@ COPY packages/client/package.json packages/client/
 RUN pnpm install --frozen-lockfile --prod
 
 # Install Playwright Chromium and its system dependencies
-RUN pnpm exec playwright install --with-deps chromium
+RUN pnpm --filter @weekboodschappen/server exec playwright install --with-deps chromium
 
 COPY --from=build-server /app/packages/server/dist ./packages/server/dist
 COPY --from=build-server /app/packages/server/migrations ./packages/server/migrations
