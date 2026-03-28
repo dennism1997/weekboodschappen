@@ -8,9 +8,10 @@ services:
     volumes:
       - app-data:/data
     environment:
+      - PORT=6883
       - DATABASE_PATH=/data/weekboodschappen.db
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET}
-      - PORT=6883
+      - PASSKEY_RP_ID=${PASSKEY_RP_ID}
       - APP_URL=${APP_URL-http://localhost:6883}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - TRUSTED_ORIGINS=${TRUSTED_ORIGINS}
