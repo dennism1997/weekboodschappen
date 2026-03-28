@@ -103,6 +103,9 @@ export const organization = sqliteTable(
     logo: text("logo"),
     createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
     metadata: text("metadata"),
+    status: text("status", {
+      enum: ["active", "waiting", "deactivated"],
+    }).notNull().default("waiting"),
   },
   (table) => [uniqueIndex("organization_slug_uidx").on(table.slug)],
 );
