@@ -4,8 +4,11 @@ import { productDiscount, cachedSuggestion } from "../db/schema.js";
 import { sql } from "drizzle-orm";
 import { refreshAllDiscounts } from "../services/discounts.js";
 import { refreshAllCachedSuggestions } from "../services/recommendations.js";
+import { sendPushoverNotification } from "../services/pushover.js";
+import { statSync } from "node:fs";
 
 const STALE_HOURS = 24;
+const DB_SIZE_WARNING_MB = 100;
 
 /**
  * Check if discounts are stale (last fetchedAt > 24h ago or no discounts exist).
@@ -29,9 +32,35 @@ function discountsAreStale(): boolean {
 }
 
 async function refreshDiscountsAndSuggestions(): Promise<void> {
-  await refreshAllDiscounts();
-  console.log("Discounts refreshed, now generating suggestions...");
-  await refreshAllCachedSuggestions();
+  try {
+    await refreshAllDiscounts();
+    console.log("Discounts refreshed, now generating suggestions...");
+    await refreshAllCachedSuggestions();
+  } catch (err) {
+    console.error("Refresh failed:", err);
+    sendPushoverNotification({
+      title: "Kortingen refresh mislukt",
+      message: `Fout: ${err instanceof Error ? err.message : String(err)}`,
+      priority: 1,
+    }).catch(() => {});
+    throw err;
+  }
+}
+
+function checkDatabaseSize(): void {
+  const dbPath = process.env.DATABASE_PATH || "./data/weekboodschappen.db";
+  try {
+    const stats = statSync(dbPath);
+    const sizeMB = stats.size / 1024 / 1024;
+    if (sizeMB > DB_SIZE_WARNING_MB) {
+      sendPushoverNotification({
+        title: "Database waarschuwing",
+        message: `Database is ${Math.round(sizeMB)}MB (limiet: ${DB_SIZE_WARNING_MB}MB)`,
+      }).catch(() => {});
+    }
+  } catch {
+    // File stat failed — ignore
+  }
 }
 
 /**
@@ -63,6 +92,7 @@ export function initScheduler(): void {
     refreshDiscountsAndSuggestions().catch((err) => {
       console.error("Scheduled refresh failed:", err);
     });
+    checkDatabaseSize();
   });
 
   console.log("Discount & suggestion scheduler initialized (cron: daily 06:00).");

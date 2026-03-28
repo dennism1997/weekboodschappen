@@ -12,3 +12,4 @@ data/
 .claude/settings.local.json
 .superpowers/
 **/*.bak
+*.tsbuildinfo
