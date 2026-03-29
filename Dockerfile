@@ -34,7 +34,8 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Install Playwright system dependencies (needs root)
 USER root
-RUN pnpm --filter @weekboodschappen/server exec playwright install-deps chromium
+RUN pnpm --filter @weekboodschappen/server exec playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Playwright browser as node user (so cache lands in /home/node/.cache)
 USER node
