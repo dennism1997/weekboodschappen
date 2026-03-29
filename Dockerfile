@@ -2,13 +2,6 @@ FROM node:24-slim AS base
 RUN corepack enable && corepack prepare pnpm@latest-10 --activate
 WORKDIR /app
 
-# Install system dependencies for better-sqlite3 and playwright
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install dependencies
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
