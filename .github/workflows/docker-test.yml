@@ -1,4 +1,4 @@
-name: Docker Build
+name: Docker Build & Test
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_call:
 
 jobs:
-  docker:
+  docker-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
