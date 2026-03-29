@@ -49,7 +49,7 @@ ENV NODE_ENV=production
 ENV PORT=6883
 ENV DATABASE_PATH=/data/weekboodschappen.db
 
-EXPOSE 6883
+EXPOSE ${PORT}
 VOLUME ["/data"]
 
 CMD ["node", "packages/server/dist/index.js"]

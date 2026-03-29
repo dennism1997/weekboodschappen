@@ -40,7 +40,7 @@ app.use((_req, res, next) => {
 app.set("trust proxy", 1); // trust first proxy
 const authLimiter = rateLimit({
   windowMs: 10_000,
-  limit: 10,
+  limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
 });
