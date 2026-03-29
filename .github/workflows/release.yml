@@ -12,8 +12,11 @@ jobs:
   test:
     uses: ./.github/workflows/test.yml
 
+  docker-test:
+    uses: ./.github/workflows/docker-test.yml
+
   build-and-push:
-    needs: test
+    needs: [test, docker-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
