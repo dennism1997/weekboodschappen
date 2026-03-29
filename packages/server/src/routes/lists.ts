@@ -5,6 +5,8 @@ import {groceryItem, groceryList, weeklyPlan,} from "../db/schema.js";
 import {and, eq} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {recordShoppingTrip} from "../services/learning.js";
+import {categorizeIngredientSync} from "../utils/categories.js";
+import {categorizeBatchWithAI} from "../services/ai.js";
 
 const ai = new Anthropic();
 
@@ -157,7 +159,7 @@ router.patch("/:id/items/:itemId", (req, res) => {
 });
 
 // POST /:id/items — Add a manual item to the list
-router.post("/:id/items", (req, res) => {
+router.post("/:id/items", async (req, res) => {
   const householdId = req.user!.householdId;
   const listId = req.params.id;
   const { name, quantity, unit, category } = req.body;
@@ -195,6 +197,16 @@ router.post("/:id/items", (req, res) => {
     return;
   }
 
+  // Auto-categorize if no category provided
+  let resolvedCategory = category;
+  if (!resolvedCategory) {
+    resolvedCategory = categorizeIngredientSync(name);
+    if (!resolvedCategory) {
+      const aiResult = await categorizeBatchWithAI([name.trim()]);
+      resolvedCategory = aiResult[name.trim()] || "Overig";
+    }
+  }
+
   // Find the highest sortOrder in the list to append at the end
   const lastItem = db
     .select()
@@ -212,7 +224,7 @@ router.post("/:id/items", (req, res) => {
       name,
       quantity: quantity || 1,
       unit: unit || "stuks",
-      category: category || "Overig",
+      category: resolvedCategory,
       source: "manual",
       sortOrder: maxSort + 1,
     })
@@ -331,7 +343,7 @@ Antwoord ALLEEN met geldige JSON:
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = text.match(/\{[\s\S]*}/);
     if (!jsonMatch) {
       res.status(500).json({ error: "AI returned invalid response" });
       return;

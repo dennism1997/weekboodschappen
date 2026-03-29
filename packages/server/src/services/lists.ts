@@ -4,6 +4,13 @@ import {and, eq} from "drizzle-orm";
 import {type MergeableItem, mergeQuantities} from "../utils/units.js";
 import {matchDiscountsToIngredients} from "./discounts.js";
 
+function getISOWeekNumber(date: Date): number {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+}
+
 /**
  * Generate a complete grocery list for a weekly plan.
  *
@@ -69,7 +76,7 @@ export function generateGroceryList(planId: string, householdId: string) {
   // 3. Merge identical ingredients across recipes
   const mergedRecipeItems = mergeQuantities(allItems);
 
-  // 4. Add weekly staples
+  // 4. Add weekly staples (filtered by frequency)
   const staples = db
     .select()
     .from(weeklyStaple)
@@ -81,7 +88,17 @@ export function generateGroceryList(planId: string, householdId: string) {
     )
     .all();
 
-  const stapleItems: MergeableItem[] = staples.map((s) => ({
+  // Calculate ISO week number to determine which staples are due
+  const planWeekStart = new Date(plan.weekStart);
+  const isoWeekNumber = getISOWeekNumber(planWeekStart);
+
+  const filteredStaples = staples.filter((s) => {
+    const freq = s.frequencyWeeks ?? 1;
+    if (freq <= 1) return true;
+    return isoWeekNumber % freq === 0;
+  });
+
+  const stapleItems: MergeableItem[] = filteredStaples.map((s) => ({
     name: s.name,
     quantity: s.defaultQuantity,
     unit: s.unit,

@@ -1,0 +1,1 @@
+ALTER TABLE `weekly_staple` ADD `frequency_weeks` integer DEFAULT 1 NOT NULL;

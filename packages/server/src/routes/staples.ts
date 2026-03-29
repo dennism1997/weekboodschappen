@@ -24,7 +24,7 @@ router.get("/", (req, res) => {
 // POST / — Add a staple
 router.post("/", validate(createStapleSchema), (req, res) => {
   const householdId = req.user!.householdId;
-  const { name, defaultQuantity, quantity, unit, category } = req.body;
+  const { name, defaultQuantity, quantity, unit, category, frequencyWeeks } = req.body;
   const qty = defaultQuantity ?? quantity;
 
   if (!name || qty === undefined || !unit || !category) {
@@ -43,6 +43,7 @@ router.post("/", validate(createStapleSchema), (req, res) => {
       defaultQuantity: qty,
       unit,
       category,
+      ...(frequencyWeeks !== undefined && { frequencyWeeks }),
     })
     .run();
 
@@ -75,7 +76,7 @@ function handleUpdateStaple(req: any, res: any) {
     return;
   }
 
-  const { name, defaultQuantity, quantity, unit, category, active } = req.body;
+  const { name, defaultQuantity, quantity, unit, category, active, frequencyWeeks } = req.body;
 
   db.update(weeklyStaple)
     .set({
@@ -84,6 +85,7 @@ function handleUpdateStaple(req: any, res: any) {
       ...(unit !== undefined && { unit }),
       ...(category !== undefined && { category }),
       ...(active !== undefined && { active }),
+      ...(frequencyWeeks !== undefined && { frequencyWeeks }),
     })
     .where(eq(weeklyStaple.id, stapleId))
     .run();
