@@ -1,6 +1,6 @@
 import {Router} from "express";
 import {db} from "../db/connection.js";
-import {groceryList, recipe, weeklyPlan, weeklyPlanRecipe,} from "../db/schema.js";
+import {groceryItem, groceryList, recipe, weeklyPlan, weeklyPlanRecipe,} from "../db/schema.js";
 import {and, desc, eq} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {generateGroceryList} from "../services/lists.js";
@@ -258,6 +258,7 @@ router.patch("/:id", (req, res) => {
   if (req.body.status) updates.status = req.body.status;
   if (req.body.store) updates.store = normalizeStore(req.body.store);
   if (req.body.name !== undefined) updates.name = req.body.name || null;
+  if (req.body.weekStart) updates.weekStart = req.body.weekStart;
 
   if (Object.keys(updates).length > 0) {
     db.update(weeklyPlan).set(updates).where(eq(weeklyPlan.id, plan.id)).run();
@@ -372,6 +373,24 @@ router.delete("/:id/recipes/:recipeId", (req, res) => {
     .get();
 
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
+
+  // Remove recipe's ingredients from the grocery list (if one exists)
+  const list = db
+    .select()
+    .from(groceryList)
+    .where(eq(groceryList.weeklyPlanId, plan.id))
+    .get();
+
+  if (list) {
+    db.delete(groceryItem)
+      .where(
+        and(
+          eq(groceryItem.groceryListId, list.id),
+          eq(groceryItem.sourceRecipeId, req.params.recipeId),
+        ),
+      )
+      .run();
+  }
 
   db.delete(weeklyPlanRecipe)
     .where(

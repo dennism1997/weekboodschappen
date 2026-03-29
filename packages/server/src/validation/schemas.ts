@@ -11,6 +11,7 @@ export const createStapleSchema = z.object({
   defaultQuantity: z.number().positive().optional(),
   unit: z.string().min(1),
   category: z.string().min(1),
+  frequencyWeeks: z.number().int().positive().optional(),
 });
 
 export const addRecipeToPlanSchema = z.object({

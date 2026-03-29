@@ -218,6 +218,26 @@ export default function GroceryList() {
         ))}
       </div>
 
+      {/* Quick add input */}
+      <div className="mb-4 flex gap-2">
+        <input
+          type="text"
+          placeholder="Item toevoegen..."
+          value={quickAdd}
+          onChange={(e) => setQuickAdd(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") addItem(); }}
+          className="min-w-0 flex-1 rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
+        />
+        {quickAdd.trim() && (
+          <button
+            onClick={addItem}
+            className="shrink-0 rounded-[12px] bg-accent px-4 py-3 text-[15px] font-semibold text-white"
+          >
+            +
+          </button>
+        )}
+      </div>
+
       {/* Items by category */}
       {categories.map((cat) => (
         <CategoryGroup key={cat} category={cat} count={grouped[cat].length}>
@@ -248,26 +268,6 @@ export default function GroceryList() {
           </div>
         </div>
       )}
-
-      {/* Quick add input */}
-      <div className="mt-4 flex gap-2">
-        <input
-          type="text"
-          placeholder="Item toevoegen..."
-          value={quickAdd}
-          onChange={(e) => setQuickAdd(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") addItem(); }}
-          className="min-w-0 flex-1 rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
-        />
-        {quickAdd.trim() && (
-          <button
-            onClick={addItem}
-            className="shrink-0 rounded-[12px] bg-accent px-4 py-3 text-[15px] font-semibold text-white"
-          >
-            +
-          </button>
-        )}
-      </div>
 
       {/* Start shopping */}
       <button

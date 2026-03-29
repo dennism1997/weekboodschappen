@@ -120,6 +120,7 @@ export const weeklyStaple = sqliteTable("weekly_staple", {
   autoSuggested: integer("auto_suggested", { mode: "boolean" })
     .notNull()
     .default(false),
+  frequencyWeeks: integer("frequency_weeks").notNull().default(1),
 });
 
 export const storeConfig = sqliteTable("store_config", {

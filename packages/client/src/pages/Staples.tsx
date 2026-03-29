@@ -32,6 +32,7 @@ interface Staple {
   unit: string;
   category: string;
   active: boolean;
+  frequencyWeeks: number;
 }
 
 export default function Staples() {
@@ -41,6 +42,7 @@ export default function Staples() {
     quantity: "1",
     unit: "stuk",
     category: "Overig",
+    frequencyWeeks: "1",
   });
   const categoryDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -97,9 +99,10 @@ export default function Staples() {
           quantity: parseFloat(form.quantity) || 1,
           unit: form.unit,
           category: form.category || "Overig",
+          frequencyWeeks: parseInt(form.frequencyWeeks) || 1,
         }),
       });
-      setForm({ name: "", quantity: "1", unit: "stuk", category: "" });
+      setForm({ name: "", quantity: "1", unit: "stuk", category: "", frequencyWeeks: "1" });
       await invalidate();
     } catch {
       // ignore
@@ -164,6 +167,11 @@ export default function Staples() {
                     <span className="ml-2 text-[13px] text-ios-secondary">
                       {s.defaultQuantity} {s.unit}
                     </span>
+                    {s.frequencyWeeks > 1 && (
+                      <span className="ml-1 text-[11px] text-ios-tertiary">
+                        · elke {s.frequencyWeeks} wkn
+                      </span>
+                    )}
                   </div>
                   <span className="rounded-full bg-ios-category-bg px-2 py-0.5 text-[10px] text-ios-secondary">
                     {s.category}
@@ -203,6 +211,11 @@ export default function Staples() {
                       <span className="ml-2 text-[13px] text-ios-tertiary">
                         {s.defaultQuantity} {s.unit}
                       </span>
+                      {s.frequencyWeeks > 1 && (
+                        <span className="ml-1 text-[11px] text-ios-tertiary">
+                          · elke {s.frequencyWeeks} wkn
+                        </span>
+                      )}
                     </div>
                     <span className="rounded-full bg-ios-category-bg px-2 py-0.5 text-[10px] text-ios-tertiary">
                       {s.category}
@@ -264,6 +277,16 @@ export default function Staples() {
               ))}
             </select>
           </div>
+          <select
+            value={form.frequencyWeeks}
+            onChange={(e) => setForm({ ...form, frequencyWeeks: e.target.value })}
+            className="w-full rounded-[8px] border border-ios-separator px-3 py-2.5 text-[13px] text-ios-label focus:border-accent focus:outline-none"
+          >
+            <option value="1">Elke week</option>
+            <option value="2">Elke 2 weken</option>
+            <option value="3">Elke 3 weken</option>
+            <option value="4">Elke 4 weken</option>
+          </select>
           <button
             onClick={addStaple}
             disabled={!form.name.trim()}

@@ -106,6 +106,9 @@ export default function MealPlanner() {
   // New plan week picker
   const [showWeekPicker, setShowWeekPicker] = useState(false);
 
+  // Week change picker (for existing plan)
+  const [showWeekChange, setShowWeekChange] = useState(false);
+
   // Recipe search
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -253,6 +256,20 @@ export default function MealPlanner() {
     // Remove deleted plan from cache
     queryClient.removeQueries({ queryKey: ["meal-plan", deletedId] });
     queryClient.invalidateQueries({ queryKey: ["all-plans"] });
+  };
+
+  const changeWeek = async (newWeekStart: string) => {
+    if (!currentPlan) return;
+    try {
+      await apiFetch(`/plans/${currentPlan.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ weekStart: newWeekStart }),
+      });
+      setShowWeekChange(false);
+      await invalidatePlans();
+    } catch {
+      // ignore
+    }
   };
 
   const renamePlan = async () => {
@@ -579,7 +596,12 @@ export default function MealPlanner() {
                     {currentPlan.displayName}
                     <Pencil className="h-3.5 w-3.5 text-ios-tertiary" />
                   </button>
-                  <p className="text-[13px] text-ios-secondary">{getWeekLabel(currentPlan.weekStart)}</p>
+                  <button
+                    onClick={() => setShowWeekChange(!showWeekChange)}
+                    className="text-[13px] text-ios-secondary underline decoration-ios-tertiary/50 underline-offset-2"
+                  >
+                    {getWeekLabel(currentPlan.weekStart)}
+                  </button>
                 </div>
               )}
             </div>
@@ -593,6 +615,27 @@ export default function MealPlanner() {
               </button>
             )}
           </div>
+
+          {/* Week change picker */}
+          {showWeekChange && (
+            <div className="mb-4 overflow-hidden rounded-[12px] bg-white">
+              {getUpcomingWeeks(8)
+                .filter((w) => {
+                  if (w.weekStart === currentPlan.weekStart) return false;
+                  const otherPlans = allPlans.filter((p) => p.id !== currentPlan.id);
+                  return !otherPlans.some((p) => p.weekStart === w.weekStart);
+                })
+                .map((w) => (
+                  <button
+                    key={w.weekStart}
+                    onClick={() => changeWeek(w.weekStart)}
+                    className="flex w-full min-h-[44px] items-center px-4 py-3 text-left text-[15px] text-ios-label border-b border-ios-separator/50 last:border-b-0 active:bg-ios-category-bg"
+                  >
+                    {w.label}
+                  </button>
+                ))}
+            </div>
+          )}
 
           {/* Delete confirmation */}
           {confirmDelete && (

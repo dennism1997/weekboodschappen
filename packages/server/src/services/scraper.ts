@@ -2,6 +2,25 @@ import {scrapeRecipe as scrapeRecipeFromHtml} from "recipe-scrapers";
 import {chromium} from "playwright";
 import {parseIngredient} from "./ingredients.js";
 
+// Kitchen equipment / utensils that should not appear as grocery ingredients
+const EQUIPMENT_KEYWORDS = [
+  "bakvorm", "bakvorm", "cakevorm", "quichevorm", "taartvorm", "springvorm",
+  "ovenschaal", "bakplaat", "bakblik", "muffinvorm",
+  "bakpapier", "aluminiumfolie", "huishoudfolie", "vershoudfolie", "plasticfolie",
+  "satéprikker", "satestokje", "cocktailprikker",
+  "keukenblok", "keukenmachine", "blender", "staafmixer", "mixer", "foodprocessor",
+  "zeef", "vergiet", "garde", "spatel", "deegroller",
+  "koekenpan", "braadpan", "steelpan", "wok", "grillpan",
+  "oven", "magnetron", "airfryer",
+  "snijplank", "koksmes",
+  "bbq", "barbecue",
+];
+
+function isEquipment(name: string): boolean {
+  const lower = name.toLowerCase();
+  return EQUIPMENT_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 const BROWSER_HEADERS = {
   "User-Agent":
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
@@ -77,7 +96,8 @@ export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
   const ingredients = rawIngredients
     .filter((raw) => raw.trim().length > 0)
     .map((raw) => parseIngredient(raw))
-    .filter((ing) => ing.name.trim().length > 0);
+    .filter((ing) => ing.name.trim().length > 0)
+    .filter((ing) => !isEquipment(ing.name));
 
   // Extract instructions with group headings, filtering out "stap N" noise
   const instructionSteps: { step: number; text: string }[] = [];
