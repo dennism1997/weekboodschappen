@@ -44,6 +44,7 @@ export default function GroceryList() {
   const [cleaning, setCleaning] = useState(false);
   const [cleanupSummary, setCleanupSummary] = useState("");
   const [confirmDeleteList, setConfirmDeleteList] = useState(false);
+  const [slidingItemId, setSlidingItemId] = useState<string | null>(null);
 
   const { data: list = null, isLoading: loading } = useQuery({
     queryKey: ["grocery-list"],
@@ -90,10 +91,33 @@ export default function GroceryList() {
     if (!list) return;
     const item = list.items.find((i) => i.id === itemId);
     if (!item) return;
-    // Optimistic update
-    queryClient.setQueryData<GroceryListData | null>(["grocery-list"], (old) =>
-      old ? { ...old, items: old.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)) } : old,
-    );
+
+    if (!item.checked) {
+      // Animate slide-down, then move to checked section
+      setSlidingItemId(itemId);
+      // Wait for animation to play before updating data
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Now the sliding class is rendered, wait for the transition
+            setTimeout(() => {
+              setSlidingItemId(null);
+              // Optimistic update
+              queryClient.setQueryData<GroceryListData | null>(["grocery-list"], (old) =>
+                old ? { ...old, items: old.items.map((i) => (i.id === itemId ? { ...i, checked: true } : i)) } : old,
+              );
+              resolve();
+            }, 250);
+          });
+        });
+      });
+    } else {
+      // Unchecking — instant, no animation
+      queryClient.setQueryData<GroceryListData | null>(["grocery-list"], (old) =>
+        old ? { ...old, items: old.items.map((i) => (i.id === itemId ? { ...i, checked: false } : i)) } : old,
+      );
+    }
+
     try {
       await apiFetch(`/lists/${list.id}/items/${itemId}`, {
         method: "PATCH",
@@ -245,6 +269,7 @@ export default function GroceryList() {
             <GroceryItemRow
               key={item.id}
               {...item}
+              sliding={slidingItemId === item.id}
               onToggle={toggleItem}
             />
           ))}

@@ -32,18 +32,18 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(compression());
 app.use((_req, res, next) => {
-  res.set("Cache-Control", "no-store");
-  next();
+    res.set("Cache-Control", "no-store");
+    next();
 });
 
 // Auth rate limiter
+app.set("trust proxy", 1); // trust first proxy
 const authLimiter = rateLimit({
   windowMs: 10_000,
-  limit: 10,
+  limit: 100,
   standardHeaders: true,
   legacyHeaders: false,
 });
-
 // Mount Better Auth handler first (needs raw body)
 app.all("/api/auth/*splat", authLimiter, toNodeHandler(auth));
 

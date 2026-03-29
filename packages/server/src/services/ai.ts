@@ -43,14 +43,15 @@ Use exact category names from the list above. Use "Overig" if unsure.`,
       response.content[0].type === "text" ? response.content[0].text : "";
     const result = JSON.parse(text) as Record<string, string>;
 
-    // Cache all results
+    // Validate and cache results — only allow known categories
+    const validated: Record<string, string> = {};
     for (const [name, category] of Object.entries(result)) {
-      if (DEFAULT_CATEGORIES.includes(category)) {
-        cacheCategory(name, category);
-      }
+      const validCategory = DEFAULT_CATEGORIES.includes(category) ? category : "Overig";
+      validated[name] = validCategory;
+      cacheCategory(name, validCategory);
     }
 
-    return result;
+    return validated;
   } catch {
     // If parsing fails, return empty — ingredients will stay "Overig"
     return {};

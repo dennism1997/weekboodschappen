@@ -2,13 +2,6 @@ FROM node:24-slim AS base
 RUN corepack enable && corepack prepare pnpm@latest-10 --activate
 WORKDIR /app
 
-# Install system dependencies for better-sqlite3 and playwright
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
 # Install dependencies
 FROM base AS deps
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
@@ -39,11 +32,14 @@ COPY --chown=node:node packages/server/package.json packages/server/
 COPY --chown=node:node packages/client/package.json packages/client/
 RUN pnpm install --frozen-lockfile --prod
 
-# Install Playwright Chromium and its system dependencies (needs root)
+# Install Playwright system dependencies (needs root)
 USER root
-RUN pnpm --filter @weekboodschappen/server exec playwright install --with-deps --no-shell chromium
+RUN pnpm --filter @weekboodschappen/server exec playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 
+# Install Playwright browser as node user (so cache lands in /home/node/.cache)
 USER node
+RUN pnpm --filter @weekboodschappen/server exec playwright install --no-shell chromium
 
 COPY --chown=node:node --from=build-server /app/packages/server/dist ./packages/server/dist
 COPY --chown=node:node --from=build-server /app/packages/server/migrations ./packages/server/migrations
@@ -53,7 +49,7 @@ ENV NODE_ENV=production
 ENV PORT=6883
 ENV DATABASE_PATH=/data/weekboodschappen.db
 
-EXPOSE 6883
+EXPOSE ${PORT}
 VOLUME ["/data"]
 
 CMD ["node", "packages/server/dist/index.js"]
