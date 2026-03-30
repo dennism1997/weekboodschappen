@@ -10,10 +10,16 @@ env:
 
 jobs:
   test:
-    uses: ./.github/workflows/test.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/test
 
   docker-test:
-    uses: ./.github/workflows/docker-test.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/docker-test
 
   build-and-push:
     needs: [test, docker-test]
@@ -40,3 +46,6 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Trigger Komodo webhook
+        run: curl -fsSL -X POST "${{ secrets.KOMODO_WEBHOOK_URL }}"

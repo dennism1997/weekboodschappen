@@ -10,10 +10,16 @@ env:
 
 jobs:
   test:
-    uses: ./.github/workflows/test.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/test
 
   docker-test:
-    uses: ./.github/workflows/docker-test.yml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/docker-test
 
   build-and-push:
     needs: [test, docker-test]
