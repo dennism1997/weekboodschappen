@@ -46,6 +46,3 @@ jobs:
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      - name: Trigger Komodo webhook
-        run: curl -fsSL -X POST "${{ secrets.KOMODO_WEBHOOK_URL }}"
