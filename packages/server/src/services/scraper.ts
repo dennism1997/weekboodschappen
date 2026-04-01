@@ -122,20 +122,37 @@ export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
     }
   }
 
-  const prepTime = parseTimeToMinutes(data.prepTime);
-  const cookTime = parseTimeToMinutes(data.cookTime);
-  const totalTime = parseTimeToMinutes(data.totalTime);
+  const safeGet = <T,>(fn: () => T): T | null => { try { return fn(); } catch { return null; } };
+  const prepTime = parseTimeToMinutes(safeGet(() => data.prepTime));
+  const cookTime = parseTimeToMinutes(safeGet(() => data.cookTime));
+  const totalTime = parseTimeToMinutes(safeGet(() => data.totalTime));
+
+  const imageUrl = data.image || extractFallbackImage(html) || null;
 
   return {
     title: data.title || "Naamloos recept",
     sourceUrl: url,
-    imageUrl: data.image || null,
+    imageUrl,
     servings: parseServings(data.yields),
     prepTimeMinutes: prepTime,
     cookTimeMinutes: cookTime || (totalTime && prepTime ? totalTime - prepTime : totalTime),
     ingredients,
     instructions: instructionSteps,
   };
+}
+
+function extractFallbackImage(html: string): string | null {
+  // Try og:image first
+  const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+  if (ogMatch) return ogMatch[1];
+
+  // Try twitter:image
+  const twitterMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+    || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+  if (twitterMatch) return twitterMatch[1];
+
+  return null;
 }
 
 function parseServings(yields: string | undefined | null): number {

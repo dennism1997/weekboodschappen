@@ -44,6 +44,8 @@ export default function Staples() {
     category: "Overig",
     frequencyWeeks: "1",
   });
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ quantity: "1", frequencyWeeks: "1" });
   const categoryDebounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   const { data: staples = [], isLoading: loading } = useQuery({
@@ -109,6 +111,28 @@ export default function Staples() {
     }
   };
 
+  const startEditing = (s: Staple) => {
+    setEditingId(s.id);
+    setEditForm({ quantity: String(s.defaultQuantity), frequencyWeeks: String(s.frequencyWeeks) });
+  };
+
+  const saveEdit = async (id: string) => {
+    const quantity = parseFloat(editForm.quantity) || 1;
+    const frequencyWeeks = parseInt(editForm.frequencyWeeks) || 1;
+    queryClient.setQueryData<Staple[]>(["staples"], (old) =>
+      old?.map((s) => s.id === id ? { ...s, defaultQuantity: quantity, frequencyWeeks } : s),
+    );
+    setEditingId(null);
+    try {
+      await apiFetch(`/staples/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantity, frequencyWeeks }),
+      });
+    } catch {
+      await invalidate();
+    }
+  };
+
   const deleteStaple = async (id: string) => {
     queryClient.setQueryData<Staple[]>(["staples"], (old) =>
       old?.filter((s) => s.id !== id),
@@ -150,40 +174,64 @@ export default function Staples() {
               {activeStaples.map((s, idx) => (
                 <div
                   key={s.id}
-                  className={`flex min-h-[44px] items-center gap-3 px-4 py-3 ${
-                    idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
-                  }`}
+                  className={`px-4 py-3 ${idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""}`}
                 >
-                  <button
-                    onClick={() => toggleActive(s)}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-accent bg-accent"
-                  >
-                    <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                    </svg>
-                  </button>
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[17px] text-ios-label">{s.name}</span>
-                    <span className="ml-2 text-[13px] text-ios-secondary">
-                      {s.defaultQuantity} {s.unit}
-                    </span>
-                    {s.frequencyWeeks > 1 && (
-                      <span className="ml-1 text-[11px] text-ios-tertiary">
-                        · elke {s.frequencyWeeks} wkn
+                  <div className="flex min-h-[44px] items-center gap-3">
+                    <button
+                      onClick={() => toggleActive(s)}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-accent bg-accent"
+                    >
+                      <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </button>
+                    <button className="flex-1 min-w-0 text-left" onClick={() => editingId === s.id ? setEditingId(null) : startEditing(s)}>
+                      <span className="text-[17px] text-ios-label">{s.name}</span>
+                      <span className="ml-2 text-[13px] text-ios-secondary">
+                        {s.defaultQuantity} {s.unit}
                       </span>
-                    )}
+                      {s.frequencyWeeks > 1 && (
+                        <span className="ml-1 text-[11px] text-ios-tertiary">
+                          · elke {s.frequencyWeeks} wkn
+                        </span>
+                      )}
+                    </button>
+                    <span className="rounded-full bg-ios-category-bg px-2 py-0.5 text-[10px] text-ios-secondary">
+                      {s.category}
+                    </span>
+                    <button onClick={() => deleteStaple(s.id)} className="text-ios-tertiary">
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
                   </div>
-                  <span className="rounded-full bg-ios-category-bg px-2 py-0.5 text-[10px] text-ios-secondary">
-                    {s.category}
-                  </span>
-                  <button
-                    onClick={() => deleteStaple(s.id)}
-                    className="text-ios-tertiary"
-                  >
-                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                  {editingId === s.id && (
+                    <div className="mt-2 flex gap-2">
+                      <input
+                        type="number"
+                        value={editForm.quantity}
+                        onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
+                        className="w-20 rounded-[8px] border border-ios-separator px-2 py-2 text-center text-[13px] text-ios-label focus:border-accent focus:outline-none"
+                      />
+                      <span className="self-center text-[13px] text-ios-secondary">{s.unit}</span>
+                      <select
+                        value={editForm.frequencyWeeks}
+                        onChange={(e) => setEditForm((f) => ({ ...f, frequencyWeeks: e.target.value }))}
+                        className="flex-1 rounded-[8px] border border-ios-separator px-2 py-2 text-[13px] text-ios-label focus:border-accent focus:outline-none"
+                      >
+                        <option value="1">Elke week</option>
+                        <option value="2">Elke 2 weken</option>
+                        <option value="3">Elke 3 weken</option>
+                        <option value="4">Elke 4 weken</option>
+                      </select>
+                      <button
+                        onClick={() => saveEdit(s.id)}
+                        className="rounded-[8px] bg-accent px-3 py-2 text-[13px] font-semibold text-white"
+                      >
+                        Opslaan
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -198,36 +246,60 @@ export default function Staples() {
                 {inactiveStaples.map((s, idx) => (
                   <div
                     key={s.id}
-                    className={`flex min-h-[44px] items-center gap-3 px-4 py-3 ${
-                      idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
-                    }`}
+                    className={`px-4 py-3 ${idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""}`}
                   >
-                    <button
-                      onClick={() => toggleActive(s)}
-                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ios-tertiary"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="text-[15px] text-ios-tertiary">{s.name}</span>
-                      <span className="ml-2 text-[13px] text-ios-tertiary">
-                        {s.defaultQuantity} {s.unit}
-                      </span>
-                      {s.frequencyWeeks > 1 && (
-                        <span className="ml-1 text-[11px] text-ios-tertiary">
-                          · elke {s.frequencyWeeks} wkn
+                    <div className="flex min-h-[44px] items-center gap-3">
+                      <button
+                        onClick={() => toggleActive(s)}
+                        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ios-tertiary"
+                      />
+                      <button className="flex-1 min-w-0 text-left" onClick={() => editingId === s.id ? setEditingId(null) : startEditing(s)}>
+                        <span className="text-[15px] text-ios-tertiary">{s.name}</span>
+                        <span className="ml-2 text-[13px] text-ios-tertiary">
+                          {s.defaultQuantity} {s.unit}
                         </span>
-                      )}
+                        {s.frequencyWeeks > 1 && (
+                          <span className="ml-1 text-[11px] text-ios-tertiary">
+                            · elke {s.frequencyWeeks} wkn
+                          </span>
+                        )}
+                      </button>
+                      <span className="rounded-full bg-ios-category-bg px-2 py-0.5 text-[10px] text-ios-tertiary">
+                        {s.category}
+                      </span>
+                      <button onClick={() => deleteStaple(s.id)} className="text-ios-tertiary">
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
-                    <span className="rounded-full bg-ios-category-bg px-2 py-0.5 text-[10px] text-ios-tertiary">
-                      {s.category}
-                    </span>
-                    <button
-                      onClick={() => deleteStaple(s.id)}
-                      className="text-ios-tertiary"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
+                    {editingId === s.id && (
+                      <div className="mt-2 flex gap-2">
+                        <input
+                          type="number"
+                          value={editForm.quantity}
+                          onChange={(e) => setEditForm((f) => ({ ...f, quantity: e.target.value }))}
+                          className="w-20 rounded-[8px] border border-ios-separator px-2 py-2 text-center text-[13px] text-ios-label focus:border-accent focus:outline-none"
+                        />
+                        <span className="self-center text-[13px] text-ios-secondary">{s.unit}</span>
+                        <select
+                          value={editForm.frequencyWeeks}
+                          onChange={(e) => setEditForm((f) => ({ ...f, frequencyWeeks: e.target.value }))}
+                          className="flex-1 rounded-[8px] border border-ios-separator px-2 py-2 text-[13px] text-ios-label focus:border-accent focus:outline-none"
+                        >
+                          <option value="1">Elke week</option>
+                          <option value="2">Elke 2 weken</option>
+                          <option value="3">Elke 3 weken</option>
+                          <option value="4">Elke 4 weken</option>
+                        </select>
+                        <button
+                          onClick={() => saveEdit(s.id)}
+                          className="rounded-[8px] bg-accent px-3 py-2 text-[13px] font-semibold text-white"
+                        >
+                          Opslaan
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

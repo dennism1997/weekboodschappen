@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from "react";
-import {useQuery} from "@tanstack/react-query";
+import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {apiFetch} from "../api/client.js";
 import RecipeCard from "../components/RecipeCard.js";
 
@@ -12,12 +12,59 @@ interface Recipe {
   timesCooked: number;
 }
 
+interface PlanSummary {
+  id: string;
+  weekStart: string;
+  displayName: string;
+}
+
+interface PlanDetail {
+  id: string;
+  recipes: { recipeId: string }[];
+}
+
+function getWeekNumber(weekStart: string): number {
+  const date = new Date(weekStart);
+  const jan1 = new Date(date.getFullYear(), 0, 1);
+  const days = Math.floor((date.getTime() - jan1.getTime()) / 86400000);
+  return Math.ceil((days + jan1.getDay() + 1) / 7);
+}
+
+function getWeekLabel(weekStart: string): string {
+  const monday = new Date(weekStart);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d: Date) => d.toLocaleDateString("nl-NL", { day: "numeric", month: "short" });
+  return `${fmt(monday)} – ${fmt(sunday)}`;
+}
+
+function getUpcomingWeeks(count: number): { weekStart: string; label: string }[] {
+  const weeks: { weekStart: string; label: string }[] = [];
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diff);
+  monday.setHours(0, 0, 0, 0);
+  for (let i = 0; i < count; i++) {
+    const ws = new Date(monday);
+    ws.setDate(monday.getDate() + i * 7);
+    const isoDate = ws.toISOString().split("T")[0];
+    weeks.push({ weekStart: isoDate, label: `Week ${getWeekNumber(isoDate)} (${getWeekLabel(isoDate)})` });
+  }
+  return weeks;
+}
+
 export default function Recipes() {
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [scrapeUrl, setScrapeUrl] = useState("");
   const [scraping, setScraping] = useState(false);
   const [scrapeError, setScrapeError] = useState("");
+  const [addingRecipeId, setAddingRecipeId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [addedRecipeIds, setAddedRecipeIds] = useState<Set<string>>(new Set());
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
 
   useEffect(() => {
@@ -37,6 +84,58 @@ export default function Recipes() {
       return apiFetch<Recipe[]>(`/recipes${params}`);
     },
   });
+
+  const { data: allPlans = [] } = useQuery({
+    queryKey: ["all-plans"],
+    queryFn: () => apiFetch<PlanSummary[]>("/plans"),
+  });
+
+  const existingWeeks = new Set(allPlans.map((p) => p.weekStart));
+  const availableNewWeeks = getUpcomingWeeks(6).filter((w) => !existingWeeks.has(w.weekStart));
+
+  const handleAddToPlan = async (planId: string) => {
+    if (!addingRecipeId) return;
+    const recipe = recipes.find((r) => r.id === addingRecipeId);
+    if (!recipe) return;
+    setAdding(true);
+    setAddingRecipeId(null);
+    try {
+      await apiFetch(`/plans/${planId}/recipes`, {
+        method: "POST",
+        body: JSON.stringify({ recipeId: recipe.id, servings: recipe.servings }),
+      });
+      setAddedRecipeIds((prev) => new Set(prev).add(recipe.id));
+      queryClient.invalidateQueries({ queryKey: ["all-plans"] });
+    } catch {
+      // ignore
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleAddToNewWeek = async (weekStart: string) => {
+    if (!addingRecipeId) return;
+    const recipe = recipes.find((r) => r.id === addingRecipeId);
+    if (!recipe) return;
+    setAdding(true);
+    setAddingRecipeId(null);
+    try {
+      const newPlan = await apiFetch<PlanDetail>("/plans", {
+        method: "POST",
+        body: JSON.stringify({ weekStart }),
+      });
+      await apiFetch(`/plans/${newPlan.id}/recipes`, {
+        method: "POST",
+        body: JSON.stringify({ recipeId: recipe.id, servings: recipe.servings }),
+      });
+      setAddedRecipeIds((prev) => new Set(prev).add(recipe.id));
+      queryClient.invalidateQueries({ queryKey: ["all-plans"] });
+    } catch {
+      // ignore
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const handleScrape = async () => {
     if (!scrapeUrl.trim()) return;
@@ -107,8 +206,55 @@ export default function Recipes() {
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {recipes.map((r) => (
-            <RecipeCard key={r.id} {...r} />
+            <RecipeCard
+              key={r.id}
+              {...r}
+              onAdd={() => setAddingRecipeId(r.id)}
+            />
           ))}
+        </div>
+      )}
+
+      {/* Weekkiezer modal */}
+      {addingRecipeId && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={() => setAddingRecipeId(null)}>
+          <div className="w-full rounded-t-[20px] bg-ios-grouped-bg p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+            <p className="mb-3 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">
+              Toevoegen aan weekplan
+            </p>
+            <div className="overflow-hidden rounded-[12px] bg-white">
+              {allPlans.map((p, idx) => (
+                <button
+                  key={p.id}
+                  onClick={() => handleAddToPlan(p.id)}
+                  disabled={adding}
+                  className={`flex w-full min-h-[44px] items-center px-4 py-3 text-left text-[15px] text-ios-label active:bg-ios-category-bg disabled:opacity-50 ${
+                    idx > 0 ? "border-t border-ios-separator/50" : ""
+                  }`}
+                >
+                  {p.displayName}
+                </button>
+              ))}
+              {availableNewWeeks.map((w, idx) => (
+                <button
+                  key={w.weekStart}
+                  onClick={() => handleAddToNewWeek(w.weekStart)}
+                  disabled={adding}
+                  className={`flex w-full min-h-[44px] items-center px-4 py-3 text-left text-[15px] text-accent active:bg-ios-category-bg disabled:opacity-50 border-t border-ios-separator/50 ${
+                    allPlans.length === 0 && idx === 0 ? "border-t-0" : ""
+                  }`}
+                >
+                  + {w.label}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setAddingRecipeId(null)}
+              className="mt-2 w-full py-2 text-[13px] text-ios-secondary"
+            >
+              Annuleren
+            </button>
+          </div>
         </div>
       )}
     </div>
