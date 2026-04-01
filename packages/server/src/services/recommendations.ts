@@ -1,11 +1,9 @@
-import Anthropic from "@anthropic-ai/sdk";
 import {db} from "../db/connection.js";
 import {cachedSuggestion, favoriteWebsite, productDiscount, recipe,} from "../db/schema.js";
 import {and, eq, gte, lte} from "drizzle-orm";
 import {member} from "../db/auth-schema.js";
 import {getRecipeRating, type ScrapedRecipeListing, scrapeRecipeListings,} from "./website-scraper.js";
-
-const client = new Anthropic();
+import {scrapeRecipe} from "./scraper.js";
 
 export interface Suggestion {
   title: string;
@@ -24,14 +22,6 @@ interface Discount {
   store: string;
   discountPercentage: number;
   salePrice: number;
-}
-
-function getSeason(date: Date): string {
-  const month = date.getMonth() + 1;
-  if (month >= 3 && month <= 5) return "lente";
-  if (month >= 6 && month <= 8) return "zomer";
-  if (month >= 9 && month <= 11) return "herfst";
-  return "winter";
 }
 
 function getCurrentDiscounts(): Discount[] {
@@ -112,14 +102,19 @@ function getOwnRecipeSuggestions(
     };
   });
 
+  // Shuffle with Fisher-Yates, then stable-sort by score so same-score items are randomized
+  for (let i = scored.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [scored[i], scored[j]] = [scored[j], scored[i]];
+  }
   scored.sort((a, b) => b.score - a.score);
 
-  // Pick top 2 with different first ingredients (proxy for main ingredient)
+  // Pick up to 5 with different first ingredients
   const picks: (typeof scored)[number][] = [];
   const usedMainIngredients = new Set<string>();
 
   for (const item of scored) {
-    if (picks.length >= 2) break;
+    if (picks.length >= 5) break;
     const ingredients = (item.recipe.ingredients as { name: string }[]) || [];
     const mainIngredient = ingredients[0]?.name?.toLowerCase() || "";
 
@@ -144,7 +139,8 @@ function getOwnRecipeSuggestions(
 }
 
 /**
- * Scrape favorite websites and use Claude to pick 3 real recipes.
+ * Scrape favorite websites and return recipes directly (no AI).
+ * Matches discount keywords against recipe titles and fetches ratings.
  */
 async function getWebsiteSuggestions(
   householdId: string,
@@ -161,11 +157,11 @@ async function getWebsiteSuggestions(
   if (websites.length === 0) return [];
 
   // 2. Scrape recipe listings from each website (in parallel)
-  const scrapeResults = await Promise.allSettled(
+  const listingScrapeResults = await Promise.allSettled(
     websites.map((w) => scrapeRecipeListings(w.url)),
   );
   const allListings: ScrapedRecipeListing[] = [];
-  for (const result of scrapeResults) {
+  for (const result of listingScrapeResults) {
     if (result.status === "fulfilled") {
       allListings.push(...result.value);
     }
@@ -178,113 +174,76 @@ async function getWebsiteSuggestions(
 
   console.log(`Scraped ${allListings.length} recipe listings from ${websites.length} website(s)`);
 
-  // 3. Use Claude to pick 3 main courses from the scraped list
-  const season = getSeason(new Date());
-  const discountSection =
-    discounts.length > 0
-      ? `\nHuidige aanbiedingen:\n${discounts.map((d) => `- ${d.productName} (${d.store}, ${d.discountPercentage}% korting)`).join("\n")}\n`
-      : "\nGeen aanbiedingen beschikbaar.\n";
+  // 3. Filter out excluded titles
+  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
+  const filtered = allListings.filter(
+    (l) => !excludeSet.has(l.title.toLowerCase()),
+  );
 
-  const listingsSection = allListings
-    .map((l, i) => `${i + 1}. "${l.title}" — ${l.url}`)
-    .join("\n");
+  // 4. Match discounts against recipe titles and score
+  const scored = filtered.map((listing) => {
+    const titleLower = listing.title.toLowerCase();
+    const matchedDiscounts: string[] = [];
+    for (const d of discounts) {
+      if (titleLower.includes(d.productName.toLowerCase())) {
+        matchedDiscounts.push(d.productName);
+      }
+    }
+    return { listing, matchedDiscounts, score: matchedDiscounts.length };
+  });
 
-  const prompt = `Je bent een Nederlandse maaltijdplanner. Kies 3 HOOFDGERECHTEN uit de onderstaande lijst van echte recepten.
-
-Beschikbare recepten van favoriete websites:
-${listingsSection}
-${discountSection}
-Context:
-- Seizoen: ${season}
-- Al gekozen/getoonde recepten (NIET opnieuw kiezen): ${excludeTitles.join(", ") || "geen"}
-
-Regels:
-- Kies ALLEEN recepten uit de bovenstaande lijst — verzin GEEN nieuwe recepten of URLs.
-- Kies ALLEEN hoofdgerechten (geen bijgerechten, voorgerechten, desserts, snacks, koekjes, taarten, ontbijt).
-- Maximaal 2 recepten met hetzelfde hoofdingrediënt (bijv. max 2x kip, max 2x gehakt).
-- Geef voorkeur aan recepten die passen bij de huidige aanbiedingen.
-- Kies recepten die NIET in de lijst van al gekozen/getoonde recepten staan.
-- Houd rekening met het seizoen (${season}).
-
-Antwoord ALLEEN met geldige JSON:
-[
-  {
-    "title": "Exacte titel uit de lijst",
-    "url": "Exacte URL uit de lijst",
-    "description": "Korte beschrijving (1-2 zinnen)",
-    "ingredients": ["ingrediënt1", "ingrediënt2"],
-    "discountMatches": ["product in aanbieding dat past bij dit recept"]
+  // Shuffle then sort by score (randomizes same-score items)
+  for (let i = scored.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [scored[i], scored[j]] = [scored[j], scored[i]];
   }
-]`;
+  scored.sort((a, b) => b.score - a.score);
 
-  try {
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+  // 5. Take top candidates and scrape full recipe details + ratings
+  const candidates = scored.slice(0, 10);
+  const [scrapeResults, ratingResults] = await Promise.all([
+    Promise.allSettled(candidates.map((c) => scrapeRecipe(c.listing.url))),
+    Promise.allSettled(candidates.map((c) => getRecipeRating(c.listing.url))),
+  ]);
+
+  const suggestions: Suggestion[] = [];
+  for (let i = 0; i < candidates.length; i++) {
+    if (suggestions.length >= 5) break;
+
+    const { listing, matchedDiscounts } = candidates[i];
+
+    const ratingResult = ratingResults[i];
+    const ratingData =
+      ratingResult.status === "fulfilled" ? ratingResult.value : null;
+
+    // Filter out recipes with rating below 3
+    if (ratingData && ratingData.value < 3) {
+      console.log(`Skipping ${listing.title}: rating ${ratingData.value} < 3`);
+      continue;
+    }
+
+    const scrapeResult = scrapeResults[i];
+    const recipeData =
+      scrapeResult.status === "fulfilled" ? scrapeResult.value : null;
+
+    if (!recipeData) {
+      console.log(`Skipping ${listing.title}: failed to scrape recipe details`);
+      continue;
+    }
+
+    suggestions.push({
+      title: recipeData.title,
+      description: "",
+      ingredients: recipeData.ingredients.map((ing) => ing.name),
+      discountMatches: [...new Set(matchedDiscounts)],
+      isExisting: false,
+      recipeUrl: listing.url,
+      rating: ratingData?.value,
+      source: "website",
     });
-
-    const text =
-      response.content[0].type === "text" ? response.content[0].text : "";
-    const jsonMatch = text.match(/\[[\s\S]*]/);
-    if (!jsonMatch) {
-      console.error("No JSON found in Claude response for website suggestions");
-      return [];
-    }
-
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{
-      title: string;
-      url: string;
-      description: string;
-      ingredients: string[];
-      discountMatches: string[];
-    }>;
-
-    // 4. Fetch ratings for the picked recipes (in parallel)
-    const ratingResults = await Promise.allSettled(
-      parsed.map((pick) => getRecipeRating(pick.url)),
-    );
-
-    const suggestions: Suggestion[] = [];
-    for (let i = 0; i < parsed.length; i++) {
-      const pick = parsed[i];
-
-      // Verify the URL is from our scraped list (Claude might hallucinate)
-      const listing = allListings.find((l) => l.url === pick.url);
-      if (!listing) {
-        console.log(`Skipping ${pick.title}: URL not in scraped list`);
-        continue;
-      }
-
-      const ratingResult = ratingResults[i];
-      const ratingData =
-        ratingResult.status === "fulfilled" ? ratingResult.value : null;
-
-      // Filter out recipes with rating below 3
-      if (ratingData && ratingData.value < 3) {
-        console.log(
-          `Skipping ${pick.title}: rating ${ratingData.value} < 3`,
-        );
-        continue;
-      }
-
-      suggestions.push({
-        title: pick.title,
-        description: pick.description || "",
-        ingredients: pick.ingredients || [],
-        discountMatches: pick.discountMatches || [],
-        isExisting: false,
-        recipeUrl: pick.url,
-        rating: ratingData?.value,
-        source: "website",
-      });
-    }
-
-    return suggestions;
-  } catch (err) {
-    console.error("Failed to get website suggestions:", err);
-    return [];
   }
+
+  return suggestions;
 }
 
 /**
@@ -297,11 +256,11 @@ export async function getRecommendations(
 ): Promise<Suggestion[]> {
   const discounts = getCurrentDiscounts();
 
-  // 1. Get 2 own recipe suggestions (fast, no AI)
+  // 1. Get own recipe suggestions (fast, no AI)
   const ownSuggestions = getOwnRecipeSuggestions(householdId, discounts, exclude);
   console.log(`Generated ${ownSuggestions.length} own recipe suggestions`);
 
-  // 2. Get 3 website suggestions (scraping + AI)
+  // 2. Get website suggestions (scraping + rating)
   const allExclude = [...exclude, ...ownSuggestions.map((s) => s.title)];
   const websiteSuggestions = await getWebsiteSuggestions(
     householdId,
