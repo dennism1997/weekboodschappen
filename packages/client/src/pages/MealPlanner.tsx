@@ -118,6 +118,9 @@ export default function MealPlanner() {
   // Track which suggestions have been saved as recipes (index → recipeId)
   const [savedSuggestions, setSavedSuggestions] = useState<Record<number, string>>({});
 
+  // Suggestions tab
+  const [suggestionsTab, setSuggestionsTab] = useState<"website" | "eigen">("website");
+
   // Accumulated suggestions (grows with each "load more")
   const [allSuggestions, setAllSuggestions] = useState<Suggestion[]>([]);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -486,25 +489,38 @@ export default function MealPlanner() {
 
           {allSuggestions.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
+              <div className="mb-3 flex rounded-[10px] bg-ios-grouped-bg p-1">
+                <button
+                  onClick={() => setSuggestionsTab("website")}
+                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
+                    suggestionsTab === "website"
+                      ? "bg-white text-ios-label shadow-sm"
+                      : "text-ios-secondary"
+                  }`}
+                >
+                  Suggesties
+                </button>
+                <button
+                  onClick={() => setSuggestionsTab("eigen")}
+                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
+                    suggestionsTab === "eigen"
+                      ? "bg-white text-ios-label shadow-sm"
+                      : "text-ios-secondary"
+                  }`}
+                >
+                  Eigen recepten
+                </button>
+              </div>
               <div className="space-y-2">
-                {allSuggestions.map((rec, i) => {
-                  const isSaved = rec.isExisting || !!savedSuggestions[i];
+                {allSuggestions.filter((s) => s.source === suggestionsTab).map((rec, i) => {
+                  const globalIndex = allSuggestions.indexOf(rec);
+                  const isSaved = rec.isExisting || !!savedSuggestions[globalIndex];
 
                   return (
                     <div key={i} className="rounded-[12px] bg-white p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                              rec.source === "eigen"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}>
-                              {rec.source === "eigen" ? "Eigen recept" : "Website"}
-                            </span>
-                          </div>
+                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                           )}
@@ -514,8 +530,9 @@ export default function MealPlanner() {
                             </p>
                           )}
                           {rec.recipeUrl && (
-                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[12px] text-accent">
-                              Bekijk recept →
+                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-accent">
+                              {new URL(rec.recipeUrl).hostname.replace("www.", "")}
+                              <span className="text-ios-tertiary">→</span>
                             </a>
                           )}
                           {rec.discountMatches.length > 0 && (
@@ -529,7 +546,7 @@ export default function MealPlanner() {
                           )}
                         </div>
                         <button
-                          onClick={() => toggleSaveRecipe(rec, i)}
+                          onClick={() => toggleSaveRecipe(rec, globalIndex)}
                           className={`shrink-0 rounded-[8px] p-1.5 ${
                             isSaved
                               ? "bg-accent text-white"
@@ -543,6 +560,11 @@ export default function MealPlanner() {
                     </div>
                   );
                 })}
+                {allSuggestions.filter((s) => s.source === suggestionsTab).length === 0 && (
+                  <p className="py-4 text-center text-[13px] text-ios-tertiary">
+                    {suggestionsTab === "website" ? "Geen websitesuggesties gevonden" : "Geen eigen recepten gevonden"}
+                  </p>
+                )}
               </div>
               <div className="mt-2 flex gap-2">
                 <button
@@ -800,28 +822,41 @@ export default function MealPlanner() {
 
           {allSuggestions.length > 0 && (
             <div className="mt-6">
-              <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
+              <div className="mb-3 flex rounded-[10px] bg-ios-grouped-bg p-1">
+                <button
+                  onClick={() => setSuggestionsTab("website")}
+                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
+                    suggestionsTab === "website"
+                      ? "bg-white text-ios-label shadow-sm"
+                      : "text-ios-secondary"
+                  }`}
+                >
+                  Suggesties
+                </button>
+                <button
+                  onClick={() => setSuggestionsTab("eigen")}
+                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
+                    suggestionsTab === "eigen"
+                      ? "bg-white text-ios-label shadow-sm"
+                      : "text-ios-secondary"
+                  }`}
+                >
+                  Eigen recepten
+                </button>
+              </div>
               <div className="space-y-2">
-                {allSuggestions.map((rec, i) => {
-                  const isSaved = rec.isExisting || !!savedSuggestions[i];
+                {allSuggestions.filter((s) => s.source === suggestionsTab).map((rec, i) => {
+                  const globalIndex = allSuggestions.indexOf(rec);
+                  const isSaved = rec.isExisting || !!savedSuggestions[globalIndex];
                   const alreadyInPlan = currentPlan.recipes.some(
-                    (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[i]
+                    (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[globalIndex]
                   );
 
                   return (
                     <div key={i} className="rounded-[12px] bg-white p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
-                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                              rec.source === "eigen"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-blue-100 text-blue-700"
-                            }`}>
-                              {rec.source === "eigen" ? "Eigen recept" : "Website"}
-                            </span>
-                          </div>
+                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                           )}
@@ -831,8 +866,9 @@ export default function MealPlanner() {
                             </p>
                           )}
                           {rec.recipeUrl && (
-                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[12px] text-accent">
-                              Bekijk recept →
+                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-accent">
+                              {new URL(rec.recipeUrl).hostname.replace("www.", "")}
+                              <span className="text-ios-tertiary">→</span>
                             </a>
                           )}
                           {rec.discountMatches.length > 0 && (
@@ -847,7 +883,7 @@ export default function MealPlanner() {
                         </div>
                         <div className="flex shrink-0 items-center gap-1.5">
                           <button
-                            onClick={() => toggleSaveRecipe(rec, i)}
+                            onClick={() => toggleSaveRecipe(rec, globalIndex)}
                             className={`rounded-[8px] p-1.5 ${
                               isSaved
                                 ? "bg-accent text-white"
@@ -859,7 +895,7 @@ export default function MealPlanner() {
                           </button>
                           {!alreadyInPlan && (
                             <button
-                              onClick={() => addSuggestionToPlan(rec, i)}
+                              onClick={() => addSuggestionToPlan(rec, globalIndex)}
                               className="rounded-[8px] bg-accent p-1.5 text-white"
                               title="Toevoegen aan weekplan"
                             >
@@ -871,6 +907,11 @@ export default function MealPlanner() {
                     </div>
                   );
                 })}
+                {allSuggestions.filter((s) => s.source === suggestionsTab).length === 0 && (
+                  <p className="py-4 text-center text-[13px] text-ios-tertiary">
+                    {suggestionsTab === "website" ? "Geen websitesuggesties gevonden" : "Geen eigen recepten gevonden"}
+                  </p>
+                )}
               </div>
               <div className="mt-2 flex gap-2">
                 <button
