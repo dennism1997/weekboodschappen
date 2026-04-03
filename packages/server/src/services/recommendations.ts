@@ -43,7 +43,7 @@ function getCurrentDiscounts(): Discount[] {
 }
 
 /**
- * Get 2 suggestions from own recipe library, preferring discount matches.
+ * Get suggestions from own recipe library, preferring discount matches.
  */
 function getOwnRecipeSuggestions(
   householdId: string,
@@ -242,7 +242,7 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
 }
 
 /**
- * Get 5 recommendations: 2 from own recipes + 3 from websites.
+ * Get recommendations: own recipes + website recipes.
  * Pass exclude to skip already-shown titles.
  */
 export async function getRecommendations(

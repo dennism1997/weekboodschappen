@@ -1,6 +1,6 @@
 import {Router} from "express";
 import {db} from "../db/connection.js";
-import {recipe, weeklyPlanRecipe} from "../db/schema.js";
+import {groceryItem, recipe, weeklyPlanRecipe} from "../db/schema.js";
 import {and, eq, like} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {scrapeRecipe} from "../services/ai-scraper.js";
@@ -68,14 +68,49 @@ router.post("/scrape", validate(scrapeRecipeSchema), async (req, res) => {
 });
 
 router.post("/from-suggestion", async (req, res) => {
-  const { title, description, ingredients } = req.body;
+  const { title, description, ingredients, recipeUrl } = req.body;
 
   if (!title || !ingredients || !Array.isArray(ingredients)) {
     res.status(400).json({ error: "title and ingredients array are required" });
     return;
   }
 
-  // Categorize each ingredient name
+  // If we have a URL, scrape the full recipe (includes instructions, image, etc.)
+  if (recipeUrl) {
+    try {
+      const scraped = await scrapeRecipe(recipeUrl);
+      let stepNum = 1;
+      const cleanedInstructions = scraped.instructions
+        .filter((s) => !(/^\*\*[^*]+\*\*$/.test(s.text.trim())))
+        .map((s) => ({ step: stepNum++, text: s.text }));
+
+      const id = crypto.randomUUID();
+      db.insert(recipe)
+        .values({
+          id,
+          householdId: req.user!.householdId,
+          title: scraped.title,
+          sourceUrl: scraped.sourceUrl,
+          imageUrl: scraped.imageUrl,
+          servings: scraped.servings,
+          prepTimeMinutes: scraped.prepTimeMinutes,
+          cookTimeMinutes: scraped.cookTimeMinutes,
+          ingredients: scraped.ingredients,
+          instructions: cleanedInstructions,
+          tags: [],
+        })
+        .run();
+
+      const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
+      res.json(saved);
+      return;
+    } catch (err: any) {
+      res.status(422).json({ error: `Failed to scrape recipe: ${err.message}` });
+      return;
+    }
+  }
+
+  // Fallback: save from suggestion data without full scrape
   const unknowns: string[] = [];
   const categorized: { name: string; quantity: number; unit: string; category: string }[] = [];
 
@@ -89,7 +124,6 @@ router.post("/from-suggestion", async (req, res) => {
     }
   }
 
-  // AI categorization for unknowns
   if (unknowns.length > 0) {
     try {
       const aiCategories = await categorizeBatchWithAI(unknowns);
@@ -211,7 +245,8 @@ router.delete("/:id", (req, res) => {
     return;
   }
 
-  // Remove from any weekly plans first
+  // Clear foreign key references before deleting
+  db.update(groceryItem).set({ sourceRecipeId: null }).where(eq(groceryItem.sourceRecipeId, req.params.id)).run();
   db.delete(weeklyPlanRecipe).where(eq(weeklyPlanRecipe.recipeId, req.params.id)).run();
   db.delete(recipe).where(eq(recipe.id, req.params.id)).run();
   res.json({ ok: true });
