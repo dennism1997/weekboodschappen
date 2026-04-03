@@ -16,7 +16,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.80.0",
+    "@anthropic-ai/sdk": "^0.82.0",
     "@better-auth/passkey": "^1.5.6",
     "@simplewebauthn/server": "^13.3.0",
     "albert-heijn-wrapper": "^3.0.0",
