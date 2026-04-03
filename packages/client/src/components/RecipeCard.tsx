@@ -7,6 +7,7 @@ interface RecipeCardProps {
   servings: number;
   tags: string[];
   timesCooked: number;
+  onAdd?: () => void;
 }
 
 export default function RecipeCard({
@@ -16,8 +17,10 @@ export default function RecipeCard({
   servings,
   tags,
   timesCooked,
+  onAdd,
 }: RecipeCardProps) {
   return (
+    <div className="relative">
     <Link
       to={`/recipes/${id}`}
       className="block overflow-hidden rounded-[12px] bg-white shadow-sm transition hover:shadow-md"
@@ -44,7 +47,7 @@ export default function RecipeCard({
             {tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full bg-accent-light px-2 py-0.5 text-[11px] font-medium text-accent"
+                className="rounded bg-ios-category-bg px-2 py-0.5 text-[11px] font-medium text-ios-secondary"
               >
                 {tag}
               </span>
@@ -53,5 +56,15 @@ export default function RecipeCard({
         )}
       </div>
     </Link>
+    {onAdd && (
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAdd(); }}
+        className="absolute bottom-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-white shadow-md text-[18px] font-medium leading-none"
+        aria-label="Toevoegen aan weekplan"
+      >
+        +
+      </button>
+    )}
+    </div>
   );
 }

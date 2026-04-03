@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent} from "@dnd-kit/core";
 import {apiFetch} from "../api/client";
 import CategoryGroup from "../components/CategoryGroup";
 import GroceryItemRow from "../components/GroceryItemRow";
@@ -35,6 +36,10 @@ interface Plan {
 }
 
 const STORES = ["Jumbo", "Albert Heijn"];
+const STORE_API_KEY: Record<string, string> = {
+  "Jumbo": "jumbo",
+  "Albert Heijn": "albert_heijn",
+};
 
 export default function GroceryList() {
   const navigate = useNavigate();
@@ -45,6 +50,16 @@ export default function GroceryList() {
   const [cleanupSummary, setCleanupSummary] = useState("");
   const [confirmDeleteList, setConfirmDeleteList] = useState(false);
   const [slidingItemId, setSlidingItemId] = useState<string | null>(null);
+  const [draggingItemId, setDraggingItemId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+  );
+
+  const { data: storeConfigs = {} } = useQuery({
+    queryKey: ["store-configs"],
+    queryFn: () => apiFetch<Record<string, string[]>>("/stores/config"),
+  });
 
   const { data: list = null, isLoading: loading } = useQuery({
     queryKey: ["grocery-list"],
@@ -147,6 +162,55 @@ export default function GroceryList() {
     }
   };
 
+  const handleDragStart = (event: DragStartEvent) => {
+    setDraggingItemId(String(event.active.id));
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    setDraggingItemId(null);
+    if (!list || !event.over) return;
+
+    const itemId = String(event.active.id);
+    const overId = String(event.over.id);
+    if (!overId.startsWith("category:")) return;
+
+    const newCategory = overId.slice("category:".length);
+    const item = list.items.find((i) => i.id === itemId);
+    if (!item || item.category === newCategory) return;
+
+    // Optimistic update
+    queryClient.setQueryData<GroceryListData | null>(["grocery-list"], (old) =>
+      old ? { ...old, items: old.items.map((i) => i.id === itemId ? { ...i, category: newCategory } : i) } : old,
+    );
+
+    try {
+      await apiFetch(`/lists/${list.id}/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ category: newCategory }),
+      });
+    } catch {
+      await invalidate();
+    }
+  };
+
+  const handleQuantityChange = async (itemId: string, quantity: number) => {
+    if (!list) return;
+
+    // Optimistic update
+    queryClient.setQueryData<GroceryListData | null>(["grocery-list"], (old) =>
+      old ? { ...old, items: old.items.map((i) => i.id === itemId ? { ...i, quantity } : i) } : old,
+    );
+
+    try {
+      await apiFetch(`/lists/${list.id}/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ quantity }),
+      });
+    } catch {
+      await invalidate();
+    }
+  };
+
   // Group items by category, unchecked first then checked at the bottom
   const uncheckedItems = (list?.items ?? []).filter((i) => !i.checked);
   const checkedItems = (list?.items ?? []).filter((i) => i.checked);
@@ -160,7 +224,15 @@ export default function GroceryList() {
     },
     {}
   );
-  const categories = Object.keys(grouped).sort();
+  const categoryOrder: string[] = storeConfigs[STORE_API_KEY[store]] ?? [];
+  const categories = Object.keys(grouped).sort((a, b) => {
+    const ai = categoryOrder.indexOf(a);
+    const bi = categoryOrder.indexOf(b);
+    if (ai === -1 && bi === -1) return a.localeCompare(b);
+    if (ai === -1) return 1;
+    if (bi === -1) return -1;
+    return ai - bi;
+  });
 
   if (loading) {
     return <p className="py-12 text-center text-[13px] text-ios-secondary">Laden...</p>;
@@ -263,18 +335,37 @@ export default function GroceryList() {
       </div>
 
       {/* Items by category */}
-      {categories.map((cat) => (
-        <CategoryGroup key={cat} category={cat} count={grouped[cat].length}>
-          {grouped[cat].map((item) => (
-            <GroceryItemRow
-              key={item.id}
-              {...item}
-              sliding={slidingItemId === item.id}
-              onToggle={toggleItem}
-            />
-          ))}
-        </CategoryGroup>
-      ))}
+      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+        {categories.map((cat) => (
+          <CategoryGroup key={cat} category={cat} count={grouped[cat].length}>
+            {grouped[cat].map((item) => (
+              <GroceryItemRow
+                key={item.id}
+                {...item}
+                sliding={slidingItemId === item.id}
+                onToggle={toggleItem}
+                onQuantityChange={handleQuantityChange}
+              />
+            ))}
+          </CategoryGroup>
+        ))}
+
+        <DragOverlay>
+          {draggingItemId && (() => {
+            const item = list.items.find((i) => i.id === draggingItemId);
+            if (!item) return null;
+            return (
+              <div className="rounded-[12px] bg-white shadow-lg opacity-90">
+                <GroceryItemRow
+                  {...item}
+                  onToggle={() => {}}
+                  draggable={false}
+                />
+              </div>
+            );
+          })()}
+        </DragOverlay>
+      </DndContext>
 
       {/* Checked items at the bottom */}
       {checkedItems.length > 0 && (
@@ -288,6 +379,7 @@ export default function GroceryList() {
                 key={item.id}
                 {...item}
                 onToggle={toggleItem}
+                draggable={false}
               />
             ))}
           </div>

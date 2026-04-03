@@ -44,7 +44,7 @@ function getCurrentDiscounts(): Discount[] {
 }
 
 /**
- * Get 2 suggestions from own recipe library, preferring discount matches.
+ * Get suggestions from own recipe library, preferring discount matches.
  */
 function getOwnRecipeSuggestions(
   householdId: string,
@@ -247,7 +247,7 @@ async function getWebsiteSuggestions(
 }
 
 /**
- * Get 5 recommendations: 2 from own recipes + 3 from websites.
+ * Get recommendations: own recipes + website recipes.
  * Pass exclude to skip already-shown titles.
  */
 export async function getRecommendations(
@@ -256,20 +256,10 @@ export async function getRecommendations(
 ): Promise<Suggestion[]> {
   const discounts = getCurrentDiscounts();
 
-  // 1. Get own recipe suggestions (fast, no AI)
-  const ownSuggestions = getOwnRecipeSuggestions(householdId, discounts, exclude);
-  console.log(`Generated ${ownSuggestions.length} own recipe suggestions`);
-
-  // 2. Get website suggestions (scraping + rating)
-  const allExclude = [...exclude, ...ownSuggestions.map((s) => s.title)];
-  const websiteSuggestions = await getWebsiteSuggestions(
-    householdId,
-    discounts,
-    allExclude,
-  );
+  const websiteSuggestions = await getWebsiteSuggestions(householdId, discounts, exclude);
   console.log(`Generated ${websiteSuggestions.length} website suggestions`);
 
-  return [...ownSuggestions, ...websiteSuggestions];
+  return websiteSuggestions;
 }
 
 /**

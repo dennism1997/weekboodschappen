@@ -80,25 +80,30 @@ router.get("/:id", (req, res) => {
   });
 });
 
-// PATCH /:id/items/:itemId — Update item status (check/skip)
+// PATCH /:id/items/:itemId — Update item status (check/skip) or category
 router.patch("/:id/items/:itemId", (req, res) => {
   const householdId = req.user!.householdId;
   const { id: listId, itemId } = req.params;
 
-  // Accept either { status: "checked" } or { checked: true }
-  let status: string;
-  if (req.body.status) {
-    status = req.body.status;
-  } else if (req.body.checked !== undefined) {
-    status = req.body.checked ? "checked" : "pending";
-  } else {
-    res.status(400).json({ error: "status or checked is required" });
-    return;
-  }
+  const isCategoryUpdate = req.body.category !== undefined;
+  const isQuantityUpdate = req.body.quantity !== undefined;
 
-  if (!["pending", "checked", "skipped"].includes(status)) {
-    res.status(400).json({ error: "status must be 'pending', 'checked', or 'skipped'" });
-    return;
+  // Validate status update path
+  let status: string | undefined;
+  if (!isCategoryUpdate && !isQuantityUpdate) {
+    if (req.body.status) {
+      status = req.body.status;
+    } else if (req.body.checked !== undefined) {
+      status = req.body.checked ? "checked" : "pending";
+    } else {
+      res.status(400).json({ error: "status, checked, category, or quantity is required" });
+      return;
+    }
+
+    if (!["pending", "checked", "skipped"].includes(status!)) {
+      res.status(400).json({ error: "status must be 'pending', 'checked', or 'skipped'" });
+      return;
+    }
   }
 
   // Verify list ownership
@@ -145,14 +150,26 @@ router.patch("/:id/items/:itemId", (req, res) => {
     return;
   }
 
-  db.update(groceryItem)
-    .set({
-      status: status as "pending" | "checked" | "skipped",
-      checkedBy: status === "checked" ? req.user!.userId : null,
-      checkedAt: status === "checked" ? new Date().toISOString() : null,
-    })
-    .where(eq(groceryItem.id, itemId))
-    .run();
+  if (isCategoryUpdate) {
+    db.update(groceryItem)
+      .set({ category: req.body.category })
+      .where(eq(groceryItem.id, itemId))
+      .run();
+  } else if (isQuantityUpdate) {
+    db.update(groceryItem)
+      .set({ quantity: req.body.quantity })
+      .where(eq(groceryItem.id, itemId))
+      .run();
+  } else {
+    db.update(groceryItem)
+      .set({
+        status: status as "pending" | "checked" | "skipped",
+        checkedBy: status === "checked" ? req.user!.userId : null,
+        checkedAt: status === "checked" ? new Date().toISOString() : null,
+      })
+      .where(eq(groceryItem.id, itemId))
+      .run();
+  }
 
   const updated = db.select().from(groceryItem).where(eq(groceryItem.id, itemId)).get();
   res.json(updated);

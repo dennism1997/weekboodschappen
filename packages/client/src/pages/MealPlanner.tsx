@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
 import {Bookmark, Pencil, Plus, RefreshCw, Trash2} from "lucide-react";
@@ -109,17 +109,12 @@ export default function MealPlanner() {
   // Week change picker (for existing plan)
   const [showWeekChange, setShowWeekChange] = useState(false);
 
-  // Recipe search
-  const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-  const [showSearch, setShowSearch] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  // Add-recipe tabs
+  const [addTab, setAddTab] = useState<"suggesties" | "eigen">("suggesties");
+  const [recipeSearch, setRecipeSearch] = useState("");
 
   // Track which suggestions have been saved as recipes (index → recipeId)
   const [savedSuggestions, setSavedSuggestions] = useState<Record<number, string>>({});
-
-  // Suggestions tab
-  const [suggestionsTab, setSuggestionsTab] = useState<"website" | "eigen">("website");
 
   // Accumulated suggestions (grows with each "load more")
   const [allSuggestions, setAllSuggestions] = useState<Suggestion[]>([]);
@@ -195,26 +190,15 @@ export default function MealPlanner() {
   };
 
 
-  // Debounce search query
-  useEffect(() => {
-    if (searchQuery.length < 2) {
-      setDebouncedSearchQuery("");
-      return;
-    }
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery]);
-
-  const { data: searchResults = [] } = useQuery({
-    queryKey: ["recipe-search", debouncedSearchQuery],
-    queryFn: () => apiFetch<SearchResult[]>(`/recipes?search=${encodeURIComponent(debouncedSearchQuery)}`),
-    enabled: debouncedSearchQuery.length >= 2,
+  const { data: allOwnRecipes = [] } = useQuery({
+    queryKey: ["all-recipes"],
+    queryFn: () => apiFetch<SearchResult[]>("/recipes"),
+    enabled: addTab === "eigen",
   });
+
+  const filteredOwnRecipes = recipeSearch.trim().length < 2
+    ? allOwnRecipes
+    : allOwnRecipes.filter((r) => r.title.toLowerCase().includes(recipeSearch.toLowerCase()));
 
   const invalidatePlans = () => {
     queryClient.invalidateQueries({ queryKey: ["meal-plan", selectedPlanId] });
@@ -299,9 +283,7 @@ export default function MealPlanner() {
           servings: recipe.servings,
         }),
       });
-      setShowSearch(false);
-      setSearchQuery("");
-      setDebouncedSearchQuery("");
+      setRecipeSearch("");
       await invalidatePlans();
       await invalidateSuggestions();
     } catch {
@@ -317,6 +299,7 @@ export default function MealPlanner() {
           title: rec.title,
           description: rec.description,
           ingredients: rec.ingredients,
+          recipeUrl: rec.recipeUrl,
         }),
       });
       return created.id;
@@ -489,38 +472,23 @@ export default function MealPlanner() {
 
           {allSuggestions.length > 0 && (
             <div className="mt-6">
-              <div className="mb-3 flex rounded-[10px] bg-ios-grouped-bg p-1">
-                <button
-                  onClick={() => setSuggestionsTab("website")}
-                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
-                    suggestionsTab === "website"
-                      ? "bg-white text-ios-label shadow-sm"
-                      : "text-ios-secondary"
-                  }`}
-                >
-                  Suggesties
-                </button>
-                <button
-                  onClick={() => setSuggestionsTab("eigen")}
-                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
-                    suggestionsTab === "eigen"
-                      ? "bg-white text-ios-label shadow-sm"
-                      : "text-ios-secondary"
-                  }`}
-                >
-                  Eigen recepten
-                </button>
-              </div>
+              <p className="mb-2 px-4 text-[13px] font-semibold uppercase tracking-wide text-ios-secondary">Suggesties</p>
               <div className="space-y-2">
-                {allSuggestions.filter((s) => s.source === suggestionsTab).map((rec, i) => {
-                  const globalIndex = allSuggestions.indexOf(rec);
-                  const isSaved = rec.isExisting || !!savedSuggestions[globalIndex];
+                {allSuggestions.map((rec, i) => {
+                  const isSaved = rec.isExisting || !!savedSuggestions[i];
 
                   return (
                     <div key={i} className="rounded-[12px] bg-white p-4">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              rec.source === "eigen" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                            }`}>
+                              {rec.source === "eigen" ? "Eigen recept" : "Website"}
+                            </span>
+                          </div>
                           {rec.description && (
                             <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
                           )}
@@ -530,9 +498,8 @@ export default function MealPlanner() {
                             </p>
                           )}
                           {rec.recipeUrl && (
-                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-accent">
-                              {new URL(rec.recipeUrl).hostname.replace("www.", "")}
-                              <span className="text-ios-tertiary">→</span>
+                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[12px] text-accent">
+                              Bekijk recept →
                             </a>
                           )}
                           {rec.discountMatches.length > 0 && (
@@ -546,11 +513,9 @@ export default function MealPlanner() {
                           )}
                         </div>
                         <button
-                          onClick={() => toggleSaveRecipe(rec, globalIndex)}
+                          onClick={() => toggleSaveRecipe(rec, i)}
                           className={`shrink-0 rounded-[8px] p-1.5 ${
-                            isSaved
-                              ? "bg-accent text-white"
-                              : "bg-ios-grouped-bg text-ios-secondary"
+                            isSaved ? "bg-accent text-white" : "bg-ios-grouped-bg text-ios-secondary"
                           }`}
                           title={isSaved ? "Opgeslagen in recepten" : "Opslaan in recepten"}
                         >
@@ -560,11 +525,6 @@ export default function MealPlanner() {
                     </div>
                   );
                 })}
-                {allSuggestions.filter((s) => s.source === suggestionsTab).length === 0 && (
-                  <p className="py-4 text-center text-[13px] text-ios-tertiary">
-                    {suggestionsTab === "website" ? "Geen websitesuggesties gevonden" : "Geen eigen recepten gevonden"}
-                  </p>
-                )}
               </div>
               <div className="mt-2 flex gap-2">
                 <button
@@ -754,53 +714,6 @@ export default function MealPlanner() {
             </div>
           )}
 
-          {/* Add recipe */}
-          {showSearch ? (
-            <div className="mb-4">
-              <input
-                type="search"
-                placeholder="Zoek een recept..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoFocus
-                className="mb-2 w-full rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[17px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
-              />
-              {searchResults.length > 0 && (
-                <div className="max-h-48 overflow-y-auto rounded-[12px] bg-white">
-                  {searchResults.map((r, idx) => (
-                    <button
-                      key={r.id}
-                      onClick={() => addRecipeToPlan(r)}
-                      className={`flex w-full min-h-[44px] items-center justify-between px-4 py-3 text-left ${
-                        idx > 0 ? "ml-4 border-t border-ios-separator pl-0" : ""
-                      }`}
-                    >
-                      <span className="text-[17px] text-ios-label">{r.title}</span>
-                      <span className="text-[13px] text-ios-secondary">{r.servings} pers.</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              <button
-                onClick={() => {
-                  setShowSearch(false);
-                  setSearchQuery("");
-                  setDebouncedSearchQuery("");
-                }}
-                className="mt-2 text-[13px] text-ios-secondary"
-              >
-                Annuleren
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowSearch(true)}
-              className="mb-4 w-full rounded-[12px] border-2 border-dashed border-ios-tertiary py-3 text-[15px] font-medium text-accent"
-            >
-              + Recept toevoegen
-            </button>
-          )}
-
           {/* Generate list button */}
           {currentPlan.recipes.length > 0 && (
             <button
@@ -812,127 +725,171 @@ export default function MealPlanner() {
             </button>
           )}
 
-          {/* Suggestions */}
-          {suggestionsLoading && allSuggestions.length === 0 && (
-            <div className="mt-6 py-8 text-center">
-              <p className="text-[15px] text-ios-secondary">Suggesties laden...</p>
-              <p className="mt-1 text-[13px] text-ios-tertiary">We zoeken recepten voor je</p>
+          {/* Tabs: Suggesties / Eigen recepten */}
+          <div className="mt-6">
+            <div className="mb-3 flex rounded-[12px] bg-ios-category-bg p-1">
+              <button
+                onClick={() => setAddTab("suggesties")}
+                className={`flex-1 rounded-[10px] py-2 text-[13px] font-semibold transition ${
+                  addTab === "suggesties" ? "bg-white text-ios-label shadow-sm" : "text-ios-secondary"
+                }`}
+              >
+                Suggesties
+              </button>
+              <button
+                onClick={() => setAddTab("eigen")}
+                className={`flex-1 rounded-[10px] py-2 text-[13px] font-semibold transition ${
+                  addTab === "eigen" ? "bg-white text-ios-label shadow-sm" : "text-ios-secondary"
+                }`}
+              >
+                Eigen recepten
+              </button>
             </div>
-          )}
 
-          {allSuggestions.length > 0 && (
-            <div className="mt-6">
-              <div className="mb-3 flex rounded-[10px] bg-ios-grouped-bg p-1">
-                <button
-                  onClick={() => setSuggestionsTab("website")}
-                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
-                    suggestionsTab === "website"
-                      ? "bg-white text-ios-label shadow-sm"
-                      : "text-ios-secondary"
-                  }`}
-                >
-                  Suggesties
-                </button>
-                <button
-                  onClick={() => setSuggestionsTab("eigen")}
-                  className={`flex-1 rounded-[8px] py-1.5 text-[13px] font-semibold transition ${
-                    suggestionsTab === "eigen"
-                      ? "bg-white text-ios-label shadow-sm"
-                      : "text-ios-secondary"
-                  }`}
-                >
-                  Eigen recepten
-                </button>
-              </div>
-              <div className="space-y-2">
-                {allSuggestions.filter((s) => s.source === suggestionsTab).map((rec, i) => {
-                  const globalIndex = allSuggestions.indexOf(rec);
-                  const isSaved = rec.isExisting || !!savedSuggestions[globalIndex];
-                  const alreadyInPlan = currentPlan.recipes.some(
-                    (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[globalIndex]
-                  );
-
-                  return (
-                    <div key={i} className="rounded-[12px] bg-white p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
-                          {rec.description && (
-                            <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
-                          )}
-                          {rec.source === "website" && rec.rating != null && (
-                            <p className="mt-0.5 text-[12px] text-ios-tertiary">
-                              {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {Math.round(rec.rating * 10) / 10}/5
-                            </p>
-                          )}
-                          {rec.recipeUrl && (
-                            <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[12px] text-accent">
-                              {new URL(rec.recipeUrl).hostname.replace("www.", "")}
-                              <span className="text-ios-tertiary">→</span>
-                            </a>
-                          )}
-                          {rec.discountMatches.length > 0 && (
-                            <div className="mt-1.5 flex flex-wrap gap-1">
-                              {rec.discountMatches.map((d, j) => (
-                                <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
-                                  korting: {d}
-                                </span>
-                              ))}
+            {addTab === "suggesties" && (
+              <>
+                {suggestionsLoading && allSuggestions.length === 0 && (
+                  <div className="py-8 text-center">
+                    <p className="text-[15px] text-ios-secondary">Suggesties laden...</p>
+                    <p className="mt-1 text-[13px] text-ios-tertiary">We zoeken recepten voor je</p>
+                  </div>
+                )}
+                {allSuggestions.length > 0 && (
+                  <>
+                    <div className="space-y-2">
+                      {allSuggestions.map((rec, i) => {
+                        const isSaved = rec.isExisting || !!savedSuggestions[i];
+                        const alreadyInPlan = currentPlan.recipes.some(
+                          (r) => r.recipeId === rec.existingRecipeId || r.recipeId === savedSuggestions[i]
+                        );
+                        return (
+                          <div key={i} className="rounded-[12px] bg-white p-4">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-[15px] font-semibold text-ios-label">{rec.title}</p>
+                                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                    rec.source === "eigen" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                                  }`}>
+                                    {rec.source === "eigen" ? "Eigen recept" : "Website"}
+                                  </span>
+                                </div>
+                                {rec.description && (
+                                  <p className="mt-0.5 text-[13px] text-ios-secondary">{rec.description}</p>
+                                )}
+                                {rec.source === "website" && rec.rating != null && (
+                                  <p className="mt-0.5 text-[12px] text-ios-tertiary">
+                                    {"★".repeat(Math.round(rec.rating))}{"☆".repeat(5 - Math.round(rec.rating))} {Math.round(rec.rating * 10) / 10}/5
+                                  </p>
+                                )}
+                                {rec.recipeUrl && (
+                                  <a href={rec.recipeUrl} target="_blank" rel="noopener noreferrer" className="mt-0.5 block truncate text-[12px] text-accent">
+                                    Bekijk recept →
+                                  </a>
+                                )}
+                                {rec.discountMatches.length > 0 && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {rec.discountMatches.map((d, j) => (
+                                      <span key={j} className="rounded-[4px] bg-accent-light px-2 py-0.5 text-[11px] font-semibold text-accent">
+                                        korting: {d}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                <button
+                                  onClick={() => toggleSaveRecipe(rec, i)}
+                                  className={`rounded-[8px] p-1.5 ${isSaved ? "bg-accent text-white" : "bg-ios-grouped-bg text-ios-secondary"}`}
+                                  title={isSaved ? "Opgeslagen in recepten" : "Opslaan in recepten"}
+                                >
+                                  <Bookmark className="h-4 w-4" fill={isSaved ? "currentColor" : "none"} />
+                                </button>
+                                {!alreadyInPlan && (
+                                  <button
+                                    onClick={() => addSuggestionToPlan(rec, i)}
+                                    className="rounded-[8px] bg-accent p-1.5 text-white"
+                                    title="Toevoegen aan weekplan"
+                                  >
+                                    <Plus className="h-4 w-4" />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          <button
-                            onClick={() => toggleSaveRecipe(rec, globalIndex)}
-                            className={`rounded-[8px] p-1.5 ${
-                              isSaved
-                                ? "bg-accent text-white"
-                                : "bg-ios-grouped-bg text-ios-secondary"
-                            }`}
-                            title={isSaved ? "Opgeslagen in recepten" : "Opslaan in recepten"}
-                          >
-                            <Bookmark className="h-4 w-4" fill={isSaved ? "currentColor" : "none"} />
-                          </button>
-                          {!alreadyInPlan && (
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        onClick={loadMoreSuggestions}
+                        disabled={loadingMore}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        {loadingMore ? "Laden..." : "Meer laden"}
+                      </button>
+                      <button
+                        onClick={refreshSuggestions}
+                        disabled={loadingMore}
+                        className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-ios-secondary disabled:opacity-50"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${loadingMore ? "animate-spin" : ""}`} />
+                        Vernieuwen
+                      </button>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {addTab === "eigen" && (
+              <>
+                <input
+                  type="search"
+                  placeholder="Zoek in je recepten..."
+                  value={recipeSearch}
+                  onChange={(e) => setRecipeSearch(e.target.value)}
+                  className="mb-3 w-full rounded-[12px] border border-ios-separator bg-white px-4 py-3 text-[15px] text-ios-label placeholder:text-ios-tertiary focus:border-accent focus:outline-none"
+                />
+                {filteredOwnRecipes.length === 0 ? (
+                  <p className="py-6 text-center text-[15px] text-ios-secondary">
+                    {recipeSearch ? "Geen recepten gevonden." : "Nog geen eigen recepten."}
+                  </p>
+                ) : (
+                  <div className="overflow-hidden rounded-[12px] bg-white">
+                    {filteredOwnRecipes.map((r, idx) => {
+                      const alreadyInPlan = currentPlan.recipes.some((pr) => pr.recipeId === r.id);
+                      return (
+                        <div
+                          key={r.id}
+                          className={`flex min-h-[44px] items-center justify-between gap-2 px-4 py-3 ${
+                            idx > 0 ? "border-t border-ios-separator" : ""
+                          }`}
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[15px] text-ios-label">{r.title}</p>
+                            <p className="text-[12px] text-ios-tertiary">{r.servings} personen</p>
+                          </div>
+                          {alreadyInPlan ? (
+                            <span className="text-[12px] font-medium text-ios-tertiary">Toegevoegd</span>
+                          ) : (
                             <button
-                              onClick={() => addSuggestionToPlan(rec, globalIndex)}
-                              className="rounded-[8px] bg-accent p-1.5 text-white"
+                              onClick={() => addRecipeToPlan(r)}
+                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-white"
                               title="Toevoegen aan weekplan"
                             >
                               <Plus className="h-4 w-4" />
                             </button>
                           )}
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {allSuggestions.filter((s) => s.source === suggestionsTab).length === 0 && (
-                  <p className="py-4 text-center text-[13px] text-ios-tertiary">
-                    {suggestionsTab === "website" ? "Geen websitesuggesties gevonden" : "Geen eigen recepten gevonden"}
-                  </p>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
-              <div className="mt-2 flex gap-2">
-                <button
-                  onClick={loadMoreSuggestions}
-                  disabled={loadingMore}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-accent disabled:opacity-50"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {loadingMore ? "Laden..." : "Meer laden"}
-                </button>
-                <button
-                  onClick={refreshSuggestions}
-                  disabled={loadingMore}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-[12px] py-3 text-[13px] font-medium text-ios-secondary disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${loadingMore ? "animate-spin" : ""}`} />
-                  Vernieuwen
-                </button>
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </>
       )}
     </div>
