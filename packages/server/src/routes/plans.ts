@@ -6,6 +6,7 @@ import {requireAuth} from "../middleware/auth.js";
 import {generateGroceryList} from "../services/lists.js";
 import {addRecipeToPlanSchema, validate} from "../validation/schemas.js";
 import {getCachedSuggestions, getRecommendations, refreshCachedSuggestions} from "../services/recommendations.js";
+import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -153,7 +154,7 @@ router.get("/current", (req, res) => {
 });
 
 // GET /current/recommendations — Get cached recipe suggestions
-router.get("/current/recommendations", async (req, res) => {
+router.get("/current/recommendations", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
 
   // Return cached suggestions
@@ -202,7 +203,7 @@ router.get("/current/recommendations", async (req, res) => {
 });
 
 // POST /current/recommendations/refresh — Regenerate all suggestions
-router.post("/current/recommendations/refresh", async (req, res) => {
+router.post("/current/recommendations/refresh", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
 
   try {
@@ -216,7 +217,7 @@ router.post("/current/recommendations/refresh", async (req, res) => {
 });
 
 // POST /current/recommendations/more — Load additional suggestions (excluding already shown)
-router.post("/current/recommendations/more", async (req, res) => {
+router.post("/current/recommendations/more", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
   const exclude: string[] = req.body.exclude || [];
 

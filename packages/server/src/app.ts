@@ -44,6 +44,7 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
+
 // Mount Better Auth handler first (needs raw body)
 app.all("/api/auth/*splat", authLimiter, toNodeHandler(auth));
 

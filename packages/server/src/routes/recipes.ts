@@ -7,11 +7,12 @@ import {scrapeRecipe} from "../services/ai-scraper.js";
 import {categorizeBatchWithAI} from "../services/ai.js";
 import {categorizeIngredientSync} from "../utils/categories.js";
 import {scrapeRecipeSchema, validate} from "../validation/schemas.js";
+import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
 
 const router = Router();
 router.use(requireAuth);
 
-router.post("/scrape", validate(scrapeRecipeSchema), async (req, res) => {
+router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, res) => {
   const { url } = req.body;
 
   try {
@@ -67,7 +68,7 @@ router.post("/scrape", validate(scrapeRecipeSchema), async (req, res) => {
   }
 });
 
-router.post("/from-suggestion", async (req, res) => {
+router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
   const { title, description, ingredients, recipeUrl } = req.body;
 
   if (!title || !ingredients || !Array.isArray(ingredients)) {
@@ -253,7 +254,7 @@ router.delete("/:id", (req, res) => {
 });
 
 // POST /categorize — Categorize ingredient names
-router.post("/categorize", async (req, res) => {
+router.post("/categorize", aiRateLimiter, async (req, res) => {
   const { ingredients } = req.body;
   if (!ingredients || !Array.isArray(ingredients)) {
     res.status(400).json({ error: "ingredients array is required" });

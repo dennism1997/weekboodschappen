@@ -7,6 +7,7 @@ import {requireAuth} from "../middleware/auth.js";
 import {recordShoppingTrip} from "../services/learning.js";
 import {categorizeIngredientSync} from "../utils/categories.js";
 import {categorizeBatchWithAI} from "../services/ai.js";
+import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
 
 const ai = new Anthropic();
 
@@ -176,9 +177,9 @@ router.patch("/:id/items/:itemId", (req, res) => {
 });
 
 // POST /:id/items — Add a manual item to the list
-router.post("/:id/items", async (req, res) => {
+router.post("/:id/items", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
-  const listId = req.params.id;
+  const listId = req.params.id as string;
   const { name, quantity, unit, category } = req.body;
 
   if (!name) {
@@ -308,9 +309,9 @@ router.delete("/:id", (req, res) => {
 });
 
 // POST /:id/cleanup — AI-powered list cleanup
-router.post("/:id/cleanup", async (req, res) => {
+router.post("/:id/cleanup", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
-  const listId = req.params.id;
+  const listId = req.params.id as string;
 
   const list = db.select().from(groceryList).where(eq(groceryList.id, listId)).get();
   if (!list) { res.status(404).json({ error: "List not found" }); return; }

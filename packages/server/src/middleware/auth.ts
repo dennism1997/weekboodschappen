@@ -60,3 +60,11 @@ export async function requireAuth(req: Request, res: Response, next: NextFunctio
     res.status(401).json({ error: "Invalid or expired session" });
   }
 }
+
+export function requireUser(req: Request, res: Response, next: NextFunction) {
+  if (!req.user?.userId) {
+    res.status(401).json({ error: "Authentication required" });
+    return;
+  }
+  next();
+}
