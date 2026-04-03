@@ -1,9 +1,8 @@
 import {db} from "../db/connection.js";
-import {cachedSuggestion, favoriteWebsite, productDiscount, recipe,} from "../db/schema.js";
+import {cachedSuggestion, productDiscount, recipe,} from "../db/schema.js";
 import {and, eq, gte, lte} from "drizzle-orm";
 import {member} from "../db/auth-schema.js";
-import {getRecipeRating, type ScrapedRecipeListing, scrapeRecipeListings,} from "./website-scraper.js";
-import {scrapeRecipe} from "./scraper.js";
+import {client} from "./ai.js";
 
 export interface Suggestion {
   title: string;
@@ -139,111 +138,107 @@ function getOwnRecipeSuggestions(
 }
 
 /**
- * Scrape favorite websites and return recipes directly (no AI).
- * Matches discount keywords against recipe titles and fetches ratings.
+ * Use Claude web search to find Dutch recipes that use discounted ingredients.
  */
 async function getWebsiteSuggestions(
-  householdId: string,
+  _householdId: string,
   discounts: Discount[],
   excludeTitles: string[],
 ): Promise<Suggestion[]> {
-  // 1. Get favorite websites
-  const websites = db
-    .select()
-    .from(favoriteWebsite)
-    .where(eq(favoriteWebsite.householdId, householdId))
-    .all();
-
-  if (websites.length === 0) return [];
-
-  // 2. Scrape recipe listings from each website (in parallel)
-  const listingScrapeResults = await Promise.allSettled(
-    websites.map((w) => scrapeRecipeListings(w.url)),
-  );
-  const allListings: ScrapedRecipeListing[] = [];
-  for (const result of listingScrapeResults) {
-    if (result.status === "fulfilled") {
-      allListings.push(...result.value);
-    }
-  }
-
-  if (allListings.length === 0) {
-    console.log("No recipe listings scraped from any website");
+  if (discounts.length === 0) {
+    console.log("No current discounts, skipping web recipe suggestions");
     return [];
   }
 
-  console.log(`Scraped ${allListings.length} recipe listings from ${websites.length} website(s)`);
+  const discountList = discounts
+    .slice(0, 20)
+    .map((d) => `- ${d.productName} (${d.store}, -${d.discountPercentage}%)`)
+    .join("\n");
 
-  // 3. Filter out excluded titles
-  const excludeSet = new Set(excludeTitles.map((t) => t.toLowerCase()));
-  const filtered = allListings.filter(
-    (l) => !excludeSet.has(l.title.toLowerCase()),
-  );
+  const excludeSection = excludeTitles.length > 0
+    ? `\n\nRecepten om te vermijden (al getoond):\n${excludeTitles.map((t) => `- ${t}`).join("\n")}`
+    : "";
 
-  // 4. Match discounts against recipe titles and score
-  const scored = filtered.map((listing) => {
-    const titleLower = listing.title.toLowerCase();
-    const matchedDiscounts: string[] = [];
-    for (const d of discounts) {
-      if (titleLower.includes(d.productName.toLowerCase())) {
-        matchedDiscounts.push(d.productName);
-      }
-    }
-    return { listing, matchedDiscounts, score: matchedDiscounts.length };
-  });
+  const prompt = `Je bent een Nederlands recepten-assistent. Zoek op het web naar recepten die gebruikmaken van ingrediënten die nu in de aanbieding zijn.
 
-  // Shuffle then sort by score (randomizes same-score items)
-  for (let i = scored.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [scored[i], scored[j]] = [scored[j], scored[i]];
-  }
-  scored.sort((a, b) => b.score - a.score);
+Ingrediënten in de aanbieding:
+${discountList}${excludeSection}
 
-  // 5. Take top candidates and scrape full recipe details + ratings
-  const candidates = scored.slice(0, 10);
-  const [scrapeResults, ratingResults] = await Promise.all([
-    Promise.allSettled(candidates.map((c) => scrapeRecipe(c.listing.url))),
-    Promise.allSettled(candidates.map((c) => getRecipeRating(c.listing.url))),
-  ]);
+Zoek naar 5 verschillende Nederlandse recepten die zoveel mogelijk aanbiedingsingrediënten bevatten.
+Focus op Nederlandse receptenwebsites (leukerecepten.nl, ah.nl/allerhande, jumbo.com, etc.).
 
-  const suggestions: Suggestion[] = [];
-  for (let i = 0; i < candidates.length; i++) {
-    if (suggestions.length >= 5) break;
+Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet deze velden hebben:
+- "title": naam van het recept
+- "description": korte beschrijving (1 zin)
+- "ingredients": array van ingrediëntnamen (alleen de namen, geen hoeveelheden)
+- "recipeUrl": de URL van het recept
+- "rating": beoordeling als gevonden (getal 1-5), of null
+- "discountMatches": array van aanbiedingsingrediënten die in het recept zitten`;
 
-    const { listing, matchedDiscounts } = candidates[i];
-
-    const ratingResult = ratingResults[i];
-    const ratingData =
-      ratingResult.status === "fulfilled" ? ratingResult.value : null;
-
-    // Filter out recipes with rating below 3
-    if (ratingData && ratingData.value < 3) {
-      console.log(`Skipping ${listing.title}: rating ${ratingData.value} < 3`);
-      continue;
-    }
-
-    const scrapeResult = scrapeResults[i];
-    const recipeData =
-      scrapeResult.status === "fulfilled" ? scrapeResult.value : null;
-
-    if (!recipeData) {
-      console.log(`Skipping ${listing.title}: failed to scrape recipe details`);
-      continue;
-    }
-
-    suggestions.push({
-      title: recipeData.title,
-      description: "",
-      ingredients: recipeData.ingredients.map((ing) => ing.name),
-      discountMatches: [...new Set(matchedDiscounts)],
-      isExisting: false,
-      recipeUrl: listing.url,
-      rating: ratingData?.value,
-      source: "website",
+  try {
+    let response = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4096,
+      tools: [
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+        },
+      ],
+      messages: [{ role: "user", content: prompt }],
     });
-  }
 
-  return suggestions;
+    // Handle pause_turn (server-side tool loop continuation)
+    let continuations = 0;
+    while (response.stop_reason === "pause_turn" && continuations < 3) {
+      response = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [
+          { role: "user", content: prompt },
+          { role: "assistant", content: response.content },
+        ],
+      });
+      continuations++;
+    }
+
+    // Extract text blocks from response
+    const text = response.content
+      .filter((block) => block.type === "text")
+      .map((block) => (block as { type: "text"; text: string }).text)
+      .join("\n");
+
+    // Parse JSON from response (may be wrapped in code fences)
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      console.log("No JSON array found in web search response");
+      return [];
+    }
+
+    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+      title: string;
+      description: string;
+      ingredients: string[];
+      recipeUrl?: string;
+      rating?: number | null;
+      discountMatches: string[];
+    }>;
+
+    return parsed.slice(0, 5).map((r) => ({
+      title: r.title,
+      description: r.description || "",
+      ingredients: r.ingredients || [],
+      discountMatches: r.discountMatches || [],
+      isExisting: false,
+      recipeUrl: r.recipeUrl,
+      rating: r.rating ?? undefined,
+      source: "website" as const,
+    }));
+  } catch (error) {
+    console.error("Failed to get web recipe suggestions via Claude:", error);
+    return [];
+  }
 }
 
 /**
@@ -260,7 +255,7 @@ export async function getRecommendations(
   const ownSuggestions = getOwnRecipeSuggestions(householdId, discounts, exclude);
   console.log(`Generated ${ownSuggestions.length} own recipe suggestions`);
 
-  // 2. Get website suggestions (scraping + rating)
+  // 2. Get website suggestions (Claude web search)
   const allExclude = [...exclude, ...ownSuggestions.map((s) => s.title)];
   const websiteSuggestions = await getWebsiteSuggestions(
     householdId,

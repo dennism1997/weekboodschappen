@@ -1,5 +1,5 @@
 name: Docker Build & Test
-description: Build Docker image and run container health and Playwright tests
+description: Build Docker image and run container health tests
 
 runs:
   using: composite
@@ -37,20 +37,6 @@ runs:
         echo "Container failed to become healthy"
         docker logs test-container
         exit 1
-
-    - name: Test Playwright Chromium
-      shell: bash
-      run: |
-        docker exec -w /app/packages/server test-container node --input-type=module -e "
-          import { chromium } from 'playwright';
-          const browser = await chromium.launch({ channel: 'chromium' });
-          const page = await browser.newPage();
-          await page.goto('http://localhost:6883/api/health');
-          const text = await page.textContent('body');
-          console.log('Playwright response:', text);
-          await browser.close();
-          console.log('Playwright Chromium is working');
-        "
 
     - name: Container logs
       if: always()

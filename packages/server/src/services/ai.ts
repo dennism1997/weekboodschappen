@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import {cacheCategory, DEFAULT_CATEGORIES} from "../utils/categories.js";
 
-const client = new Anthropic();
+export const client = new Anthropic();
 
 let aiCallCount = 0;
 
