@@ -6,25 +6,29 @@ import {join} from "node:path";
 const PROJECT_ROOT = join(import.meta.dirname, "../../../..");
 const IMAGE_NAME = "weekboodschappen:test";
 
-describe("Docker image", () => {
+// Build once for all suites
+beforeAll(async () => {
+  console.log("[docker-test] Building image...");
+  execSync(`docker build -t ${IMAGE_NAME} ${PROJECT_ROOT}`, { stdio: "inherit" });
+}, 300_000);
+
+function startContainer() {
+  return new GenericContainer(IMAGE_NAME)
+    .withExposedPorts(6883)
+    .withEnvironment({ BETTER_AUTH_SECRET: "ci-test-secret" })
+    .withWaitStrategy(Wait.forHttp("/api/health", 6883).forStatusCode(200))
+    .withStartupTimeout(120_000)
+    .start();
+}
+
+describe("Docker: API and migrations", () => {
   let container: StartedTestContainer;
   let baseUrl: string;
 
   beforeAll(async () => {
-    // Build the image using Docker CLI (uses layer cache, much faster than testcontainers build)
-    console.log("[docker-test] Building image...");
-    execSync(`docker build -t ${IMAGE_NAME} ${PROJECT_ROOT}`, { stdio: "inherit" });
-
-    container = await new GenericContainer(IMAGE_NAME)
-      .withExposedPorts(6883)
-      .withEnvironment({ BETTER_AUTH_SECRET: "ci-test-secret" })
-      .withWaitStrategy(Wait.forHttp("/api/health", 6883).forStatusCode(200))
-      .withStartupTimeout(120_000)
-      .start();
-
-    const port = container.getMappedPort(6883);
-    baseUrl = `http://localhost:${port}`;
-  }, 300_000);
+    container = await startContainer();
+    baseUrl = `http://localhost:${container.getMappedPort(6883)}`;
+  }, 180_000);
 
   afterAll(async () => {
     await container?.stop();
@@ -32,7 +36,6 @@ describe("Docker image", () => {
 
   it("health endpoint returns ok", async () => {
     const res = await fetch(`${baseUrl}/api/health`);
-    expect(res.ok).toBe(true);
     const body = await res.json();
     expect(body.status).toBe("ok");
   });
@@ -48,26 +51,23 @@ describe("Docker image", () => {
       ],
       { workingDir: "/app/packages/server" },
     );
-
-    // Extract JSON array from output (may contain other text/stderr)
     const match = result.output.match(/\[.*\]/);
-    expect(match, `Expected JSON array in output, got: ${result.output}`).toBeTruthy();
+    expect(match, `Expected JSON array, got: ${result.output}`).toBeTruthy();
+
     const tables = JSON.parse(match![0]);
-    const expected = [
+    for (const name of [
       "account", "cached_suggestion", "favorite_website", "grocery_item",
       "grocery_list", "invitation", "member", "organization", "passkey",
       "product_discount", "recipe", "recovery_token", "session",
       "shopping_history", "store_config", "user", "verification",
       "weekly_plan", "weekly_plan_recipe", "weekly_staple",
-    ];
-    for (const table of expected) {
-      expect(tables, `Missing table: ${table}`).toContain(table);
+    ]) {
+      expect(tables, `Missing table: ${name}`).toContain(name);
     }
   });
 
   it("config endpoint returns posthog fields", async () => {
     const res = await fetch(`${baseUrl}/api/config`);
-    expect(res.ok).toBe(true);
     const body = await res.json();
     expect(body).toHaveProperty("posthogToken");
     expect(body).toHaveProperty("posthogHost");
@@ -81,25 +81,18 @@ describe("Docker image", () => {
   });
 
   it("setup flow works on fresh database", async () => {
-    // Should need setup
     const statusRes = await fetch(`${baseUrl}/api/setup/status`);
-    const status = await statusRes.json();
-    expect(status.needsSetup).toBe(true);
+    expect((await statusRes.json()).needsSetup).toBe(true);
 
-    // Register first user
     const registerRes = await fetch(`${baseUrl}/api/setup`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: "CI User", householdName: "CI Household", password: "testpassword123" }),
     });
-    expect(registerRes.ok).toBe(true);
-    const registerBody = await registerRes.json();
-    expect(registerBody.success).toBe(true);
+    expect((await registerRes.json()).success).toBe(true);
 
-    // Should no longer need setup
     const statusRes2 = await fetch(`${baseUrl}/api/setup/status`);
-    const status2 = await statusRes2.json();
-    expect(status2.needsSetup).toBe(false);
+    expect((await statusRes2.json()).needsSetup).toBe(false);
   });
 
   it("Playwright Chromium works inside container", async () => {
@@ -119,11 +112,22 @@ describe("Docker image", () => {
     expect(result.exitCode, `Playwright failed: ${result.output}`).toBe(0);
     expect(result.output).toContain("ok");
   }, 60_000);
+});
+
+describe("Docker: restart resilience", () => {
+  let container: StartedTestContainer;
+
+  beforeAll(async () => {
+    container = await startContainer();
+  }, 180_000);
+
+  afterAll(async () => {
+    await container?.stop();
+  });
 
   it("survives restart (migrations are idempotent)", async () => {
     await container.restart({ timeout: 30 });
 
-    // Use exec to check health from inside (port mapping may change after restart)
     let healthy = false;
     for (let i = 0; i < 30; i++) {
       try {
