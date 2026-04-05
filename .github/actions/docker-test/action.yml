@@ -1,44 +1,21 @@
-name: Docker Build & Test
-description: Build Docker image and run container health tests
+name: Docker Test
+description: Build Docker image and run integration tests with testcontainers
 
 runs:
   using: composite
   steps:
-    - uses: docker/setup-buildx-action@v4
-
-    - name: Build Docker image
-      uses: docker/build-push-action@v7
+    - uses: pnpm/action-setup@v5
       with:
-        context: .
-        load: true
-        tags: weekboodschappen:test
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
+        version: 10
 
-    - name: Start container
-      shell: bash
-      run: |
-        docker run -d \
-          --name test-container \
-          -p 6883:6883 \
-          -e BETTER_AUTH_SECRET=ci-test-secret \
-          weekboodschappen:test
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+        cache: pnpm
 
-    - name: Wait for healthy
+    - run: pnpm install --frozen-lockfile
       shell: bash
-      run: |
-        for i in $(seq 1 10); do
-          if curl -sf http://localhost:6883/api/health; then
-            echo "Container is healthy"
-            exit 0
-          fi
-          sleep 1
-        done
-        echo "Container failed to become healthy"
-        docker logs test-container
-        exit 1
 
-    - name: Container logs
-      if: always()
+    - name: Docker integration tests
+      run: pnpm --filter @weekboodschappen/server run test:docker
       shell: bash
-      run: docker logs test-container

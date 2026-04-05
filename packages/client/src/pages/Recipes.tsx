@@ -7,10 +7,12 @@ import RecipeCard from "../components/RecipeCard.js";
 interface Recipe {
   id: string;
   title: string;
+  sourceUrl: string | null;
   imageUrl: string | null;
   servings: number;
   tags: string[];
   timesCooked: number;
+  status: "ready" | "pending" | "failed";
 }
 
 interface PlanSummary {

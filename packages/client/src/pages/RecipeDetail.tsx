@@ -28,6 +28,7 @@ interface Recipe {
   instructions: Instruction[];
   tags: string[];
   timesCooked: number;
+  status: "ready" | "pending" | "failed";
 }
 
 interface PlanSummary {
@@ -92,6 +93,8 @@ export default function RecipeDetail() {
     queryKey: ["recipe", id],
     queryFn: () => apiFetch<Recipe>(`/recipes/${id}`),
     enabled: !!id,
+    refetchInterval: (query) =>
+      query.state.data?.status === "pending" ? 3000 : false,
   });
 
   const { data: allPlans = [] } = useQuery({
@@ -184,6 +187,30 @@ export default function RecipeDetail() {
       )}
 
       <h1 className="text-[34px] font-bold leading-tight text-ios-label">{recipe.title}</h1>
+
+      {recipe.status === "pending" && (
+        <div className="mt-3 rounded-[12px] bg-amber-50 p-4 text-[13px] text-amber-800">
+          <p className="font-semibold">Recept wordt opgehaald...</p>
+          <p className="mt-1">De ingrediënten en bereiding worden op de achtergrond geladen.</p>
+          {recipe.sourceUrl && (
+            <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-accent">
+              Bekijk recept op de website →
+            </a>
+          )}
+        </div>
+      )}
+
+      {recipe.status === "failed" && (
+        <div className="mt-3 rounded-[12px] bg-red-50 p-4 text-[13px] text-red-800">
+          <p className="font-semibold">Recept ophalen mislukt</p>
+          <p className="mt-1">We konden de ingrediënten en bereiding niet automatisch ophalen.</p>
+          {recipe.sourceUrl && (
+            <a href={recipe.sourceUrl} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-accent">
+              Bekijk recept op de website →
+            </a>
+          )}
+        </div>
+      )}
 
       <div className="mt-2 flex gap-3 text-[13px] text-ios-secondary">
         <span>{recipe.servings} personen</span>

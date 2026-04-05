@@ -1,3 +1,4 @@
 - always use pnpm instead of npm, so use `pnpm exec` instead of `npx`.
 - use the typescript lsp
 - always run tests to verify the changes
+- write tests for new features or bug fixes

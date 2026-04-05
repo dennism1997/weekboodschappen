@@ -32,6 +32,15 @@ COPY --chown=node:node packages/server/package.json packages/server/
 COPY --chown=node:node packages/client/package.json packages/client/
 RUN pnpm install --frozen-lockfile --prod
 
+# Install Playwright system dependencies (needs root)
+USER root
+RUN pnpm --filter @weekboodschappen/server exec playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Playwright browser as node user
+USER node
+RUN pnpm --filter @weekboodschappen/server exec playwright install --no-shell chromium
+
 COPY --chown=node:node --from=build-server /app/packages/server/dist ./packages/server/dist
 COPY --chown=node:node --from=build-server /app/packages/server/migrations ./packages/server/migrations
 COPY --chown=node:node --from=build-client /app/packages/client/dist ./packages/client/dist
