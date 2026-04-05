@@ -14,6 +14,10 @@ services:
       - PASSKEY_RP_ID=${PASSKEY_RP_ID}
       - APP_URL=${APP_URL-http://localhost:6883}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - POSTHOG_API_KEY=${POSTHOG_API_KEY}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://eu.i.posthog.com}
+      - VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=${VITE_PUBLIC_POSTHOG_PROJECT_TOKEN}
+      - VITE_PUBLIC_POSTHOG_HOST=${VITE_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
       - TRUSTED_ORIGINS=${TRUSTED_ORIGINS}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:6883/api/health').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
