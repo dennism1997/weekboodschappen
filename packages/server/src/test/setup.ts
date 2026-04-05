@@ -30,8 +30,7 @@ export function setupTestDb() {
   sqlite.pragma("journal_mode = WAL");
   testDb = drizzle(sqlite, { schema });
 
-  // Run migrations (FK checks off so table-swap migrations work)
-  sqlite.pragma("foreign_keys = OFF");
+  // Run migrations with FK checks off (table-swap migrations need this)
   const migrationsFolder = join(import.meta.dirname, "../../migrations");
   migrate(testDb, { migrationsFolder });
   sqlite.pragma("foreign_keys = ON");

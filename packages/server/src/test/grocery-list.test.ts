@@ -151,4 +151,42 @@ describe("Grocery list", () => {
       expect(list?.weeklyPlanId).toBeDefined();
     });
   });
+
+  describe("deleting a plan with a linked grocery list", () => {
+    it("does not fail with FK constraint", async () => {
+      setMockSession(userId, householdId);
+
+      // Create a plan
+      const planId = crypto.randomUUID();
+      db.insert(weeklyPlan).values({
+        id: planId,
+        householdId,
+        weekStart: "2026-04-13",
+        store: "jumbo",
+      }).run();
+
+      // Link the household list to this plan
+      const list = db.select().from(groceryList)
+        .where(eq(groceryList.householdId, householdId))
+        .get();
+      if (list) {
+        db.update(groceryList)
+          .set({ weeklyPlanId: planId })
+          .where(eq(groceryList.id, list.id))
+          .run();
+      }
+
+      // Delete the plan — should not throw
+      const res = await request(app).delete(`/api/plans/${planId}`);
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+
+      // Grocery list should still exist but unlinked
+      const listAfter = db.select().from(groceryList)
+        .where(eq(groceryList.householdId, householdId))
+        .get();
+      expect(listAfter).toBeDefined();
+      expect(listAfter!.weeklyPlanId).toBeNull();
+    });
+  });
 });

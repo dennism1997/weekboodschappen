@@ -285,6 +285,11 @@ router.delete("/:id", (req, res) => {
 
   if (!plan) { res.status(404).json({ error: "Plan not found" }); return; }
 
+  // Unlink grocery list from this plan (list is permanent per household)
+  db.update(groceryList)
+    .set({ weeklyPlanId: null })
+    .where(eq(groceryList.weeklyPlanId, plan.id))
+    .run();
   db.delete(weeklyPlanRecipe)
     .where(eq(weeklyPlanRecipe.weeklyPlanId, plan.id))
     .run();
