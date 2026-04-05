@@ -1,5 +1,5 @@
 import {db} from "../db/connection.js";
-import {cachedSuggestion, productDiscount, recipe,} from "../db/schema.js";
+import {cachedSuggestion, productDiscount,} from "../db/schema.js";
 import {and, eq, gte, lte} from "drizzle-orm";
 import {member} from "../db/auth-schema.js";
 import {client} from "./ai.js";
@@ -43,101 +43,6 @@ function getCurrentDiscounts(): Discount[] {
 }
 
 /**
- * Get suggestions from own recipe library, preferring discount matches.
- */
-function getOwnRecipeSuggestions(
-  householdId: string,
-  discounts: Discount[],
-  exclude: string[] = [],
-): Suggestion[] {
-  const excludeSet = new Set(exclude.map((t) => t.toLowerCase()));
-
-  let allRecipes = db
-    .select()
-    .from(recipe)
-    .where(eq(recipe.householdId, householdId))
-    .all();
-
-  // Filter out already-shown recipes
-  allRecipes = allRecipes.filter((r) => !excludeSet.has(r.title.toLowerCase()));
-
-  if (allRecipes.length === 0) return [];
-
-  const eightWeeksAgo = new Date();
-  eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
-  const eightWeeksAgoStr = eightWeeksAgo.toISOString().split("T")[0];
-
-  // Score each recipe by discount matches + recency
-  const scored = allRecipes.map((r) => {
-    let score = 0;
-    const matchedDiscounts: string[] = [];
-
-    const ingredients = (r.ingredients as { name: string }[]) || [];
-    for (const ing of ingredients) {
-      for (const d of discounts) {
-        const ingName = (ing.name || "").toLowerCase();
-        const dName = d.productName.toLowerCase();
-        if (ingName.includes(dName) || dName.includes(ingName)) {
-          score += d.discountPercentage;
-          matchedDiscounts.push(d.productName);
-        }
-      }
-    }
-
-    // Penalize recently cooked recipes
-    if (r.lastCookedAt && r.lastCookedAt >= eightWeeksAgoStr) {
-      score -= 50;
-    }
-
-    // Small bonus for never-cooked recipes
-    if (!r.lastCookedAt) {
-      score += 10;
-    }
-
-    return {
-      recipe: r,
-      score,
-      matchedDiscounts: [...new Set(matchedDiscounts)],
-    };
-  });
-
-  // Shuffle with Fisher-Yates, then stable-sort by score so same-score items are randomized
-  for (let i = scored.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [scored[i], scored[j]] = [scored[j], scored[i]];
-  }
-  scored.sort((a, b) => b.score - a.score);
-
-  // Pick up to 5 with different first ingredients
-  const picks: (typeof scored)[number][] = [];
-  const usedMainIngredients = new Set<string>();
-
-  for (const item of scored) {
-    if (picks.length >= 5) break;
-    const ingredients = (item.recipe.ingredients as { name: string }[]) || [];
-    const mainIngredient = ingredients[0]?.name?.toLowerCase() || "";
-
-    if (usedMainIngredients.has(mainIngredient) && mainIngredient) continue;
-
-    picks.push(item);
-    if (mainIngredient) usedMainIngredients.add(mainIngredient);
-  }
-
-  return picks.map((p) => ({
-    title: p.recipe.title,
-    description: "",
-    ingredients: ((p.recipe.ingredients as { name: string }[]) || []).map(
-      (i) => i.name,
-    ),
-    discountMatches: p.matchedDiscounts,
-    isExisting: true,
-    existingRecipeId: p.recipe.id,
-    recipeUrl: p.recipe.sourceUrl || undefined,
-    source: "eigen" as const,
-  }));
-}
-
-/**
  * Use Claude web search to find Dutch recipes that use discounted ingredients.
  */
 async function getWebsiteSuggestions(
@@ -164,7 +69,8 @@ async function getWebsiteSuggestions(
 Ingrediënten in de aanbieding:
 ${discountList}${excludeSection}
 
-Zoek naar 5 verschillende Nederlandse recepten die zoveel mogelijk aanbiedingsingrediënten bevatten.
+Zoek naar 5 verschillende Nederlandse hoofdgerechten die zoveel mogelijk aanbiedingsingrediënten bevatten.
+Alleen hoofdgerechten — geen voorgerechten, bijgerechten, desserts, snacks of soepen.
 Focus op Nederlandse receptenwebsites (leukerecepten.nl, ah.nl/allerhande, jumbo.com, etc.).
 
 Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet deze velden hebben:
@@ -251,20 +157,10 @@ export async function getRecommendations(
 ): Promise<Suggestion[]> {
   const discounts = getCurrentDiscounts();
 
-  // 1. Get own recipe suggestions (fast, no AI)
-  const ownSuggestions = getOwnRecipeSuggestions(householdId, discounts, exclude);
-  console.log(`Generated ${ownSuggestions.length} own recipe suggestions`);
-
-  // 2. Get website suggestions (Claude web search)
-  const allExclude = [...exclude, ...ownSuggestions.map((s) => s.title)];
-  const websiteSuggestions = await getWebsiteSuggestions(
-    householdId,
-    discounts,
-    allExclude,
-  );
+  const websiteSuggestions = await getWebsiteSuggestions(householdId, discounts, exclude);
   console.log(`Generated ${websiteSuggestions.length} website suggestions`);
 
-  return [...ownSuggestions, ...websiteSuggestions];
+  return websiteSuggestions;
 }
 
 /**

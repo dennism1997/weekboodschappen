@@ -138,35 +138,38 @@ export function generateGroceryList(planId: string, householdId: string) {
     return a.name.localeCompare(b.name, "nl");
   });
 
-  // 8. Reuse existing list or create a new one; preserve manual items
-  const existingList = db
+  // 8. Find household list (or create one); preserve manual items
+  let existingList = db
     .select()
     .from(groceryList)
-    .where(eq(groceryList.weeklyPlanId, planId))
+    .where(eq(groceryList.householdId, householdId))
     .get();
 
-  const listId = existingList?.id ?? crypto.randomUUID();
-
-  if (existingList) {
-    // Delete only recipe and staple items — keep manual items
+  if (!existingList) {
+    const newId = crypto.randomUUID();
+    db.insert(groceryList)
+      .values({ id: newId, householdId, weeklyPlanId: planId })
+      .run();
+    existingList = db.select().from(groceryList).where(eq(groceryList.id, newId)).get()!;
+  } else {
+    // Link to current plan and delete non-manual items
+    db.update(groceryList)
+      .set({ weeklyPlanId: planId })
+      .where(eq(groceryList.id, existingList.id))
+      .run();
     const existingItems = db
       .select()
       .from(groceryItem)
-      .where(eq(groceryItem.groceryListId, listId))
+      .where(eq(groceryItem.groceryListId, existingList.id))
       .all();
     for (const item of existingItems) {
       if (item.source !== "manual") {
         db.delete(groceryItem).where(eq(groceryItem.id, item.id)).run();
       }
     }
-  } else {
-    db.insert(groceryList)
-      .values({
-        id: listId,
-        weeklyPlanId: planId,
-      })
-      .run();
   }
+
+  const listId = existingList.id;
 
   for (let i = 0; i < sortedItems.length; i++) {
     const item = sortedItems[i];

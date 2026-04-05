@@ -1,7 +1,7 @@
 import {Router} from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import {db} from "../db/connection.js";
-import {groceryItem, groceryList, weeklyPlan,} from "../db/schema.js";
+import {groceryItem, groceryList,} from "../db/schema.js";
 import {and, eq} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {recordShoppingTrip} from "../services/learning.js";
@@ -14,35 +14,60 @@ const ai = new Anthropic();
 const router = Router();
 router.use(requireAuth);
 
+// Helper: verify list belongs to the user's household
+function verifyListOwnership(listId: string, householdId: string) {
+  const list = db
+    .select()
+    .from(groceryList)
+    .where(and(eq(groceryList.id, listId), eq(groceryList.householdId, householdId)))
+    .get();
+  return list ?? null;
+}
+
+// GET /current — Get or create the household's grocery list
+router.get("/current", (req, res) => {
+  const householdId = req.user!.householdId;
+
+  let list = db
+    .select()
+    .from(groceryList)
+    .where(eq(groceryList.householdId, householdId))
+    .get();
+
+  if (!list) {
+    const id = crypto.randomUUID();
+    db.insert(groceryList)
+      .values({ id, householdId })
+      .run();
+    list = db.select().from(groceryList).where(eq(groceryList.id, id)).get()!;
+  }
+
+  const items = db
+    .select()
+    .from(groceryItem)
+    .where(eq(groceryItem.groceryListId, list.id))
+    .all();
+
+  const mappedItems = items.map((item) => ({
+    ...item,
+    checked: item.status === "checked",
+    source: item.source === "staple" ? "basis" : item.source === "manual" ? "handmatig" : "recept",
+  }));
+
+  res.json({
+    ...list,
+    planId: list.weeklyPlanId,
+    items: mappedItems,
+  });
+});
+
 // GET /:id — Get list with items grouped by category
 router.get("/:id", (req, res) => {
   const householdId = req.user!.householdId;
   const listId = req.params.id;
 
-  const list = db
-    .select()
-    .from(groceryList)
-    .where(eq(groceryList.id, listId))
-    .get();
-
+  const list = verifyListOwnership(listId, householdId);
   if (!list) {
-    res.status(404).json({ error: "List not found" });
-    return;
-  }
-
-  // Verify the list belongs to the user's household via the plan
-  const plan = db
-    .select()
-    .from(weeklyPlan)
-    .where(
-      and(
-        eq(weeklyPlan.id, list.weeklyPlanId),
-        eq(weeklyPlan.householdId, householdId),
-      ),
-    )
-    .get();
-
-  if (!plan) {
     res.status(404).json({ error: "List not found" });
     return;
   }
@@ -107,30 +132,7 @@ router.patch("/:id/items/:itemId", (req, res) => {
     }
   }
 
-  // Verify list ownership
-  const list = db
-    .select()
-    .from(groceryList)
-    .where(eq(groceryList.id, listId))
-    .get();
-
-  if (!list) {
-    res.status(404).json({ error: "List not found" });
-    return;
-  }
-
-  const plan = db
-    .select()
-    .from(weeklyPlan)
-    .where(
-      and(
-        eq(weeklyPlan.id, list.weeklyPlanId),
-        eq(weeklyPlan.householdId, householdId),
-      ),
-    )
-    .get();
-
-  if (!plan) {
+  if (!verifyListOwnership(listId, householdId)) {
     res.status(404).json({ error: "List not found" });
     return;
   }
@@ -187,30 +189,7 @@ router.post("/:id/items", aiRateLimiter, async (req, res) => {
     return;
   }
 
-  // Verify list ownership
-  const list = db
-    .select()
-    .from(groceryList)
-    .where(eq(groceryList.id, listId))
-    .get();
-
-  if (!list) {
-    res.status(404).json({ error: "List not found" });
-    return;
-  }
-
-  const plan = db
-    .select()
-    .from(weeklyPlan)
-    .where(
-      and(
-        eq(weeklyPlan.id, list.weeklyPlanId),
-        eq(weeklyPlan.householdId, householdId),
-      ),
-    )
-    .get();
-
-  if (!plan) {
+  if (!verifyListOwnership(listId, householdId)) {
     res.status(404).json({ error: "List not found" });
     return;
   }
@@ -257,30 +236,7 @@ router.post("/:id/finalize", (req, res) => {
   const householdId = req.user!.householdId;
   const listId = req.params.id;
 
-  // Verify list ownership
-  const list = db
-    .select()
-    .from(groceryList)
-    .where(eq(groceryList.id, listId))
-    .get();
-
-  if (!list) {
-    res.status(404).json({ error: "List not found" });
-    return;
-  }
-
-  const plan = db
-    .select()
-    .from(weeklyPlan)
-    .where(
-      and(
-        eq(weeklyPlan.id, list.weeklyPlanId),
-        eq(weeklyPlan.householdId, householdId),
-      ),
-    )
-    .get();
-
-  if (!plan) {
+  if (!verifyListOwnership(listId, householdId)) {
     res.status(404).json({ error: "List not found" });
     return;
   }
@@ -294,13 +250,10 @@ router.delete("/:id", (req, res) => {
   const householdId = req.user!.householdId;
   const listId = req.params.id;
 
-  const list = db.select().from(groceryList).where(eq(groceryList.id, listId)).get();
-  if (!list) { res.status(404).json({ error: "List not found" }); return; }
-
-  const plan = db.select().from(weeklyPlan)
-    .where(and(eq(weeklyPlan.id, list.weeklyPlanId), eq(weeklyPlan.householdId, householdId)))
-    .get();
-  if (!plan) { res.status(404).json({ error: "List not found" }); return; }
+  if (!verifyListOwnership(listId, householdId)) {
+    res.status(404).json({ error: "List not found" });
+    return;
+  }
 
   db.delete(groceryItem).where(eq(groceryItem.groceryListId, listId)).run();
   db.delete(groceryList).where(eq(groceryList.id, listId)).run();
@@ -313,13 +266,10 @@ router.post("/:id/cleanup", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
   const listId = req.params.id as string;
 
-  const list = db.select().from(groceryList).where(eq(groceryList.id, listId)).get();
-  if (!list) { res.status(404).json({ error: "List not found" }); return; }
-
-  const plan = db.select().from(weeklyPlan)
-    .where(and(eq(weeklyPlan.id, list.weeklyPlanId), eq(weeklyPlan.householdId, householdId)))
-    .get();
-  if (!plan) { res.status(404).json({ error: "List not found" }); return; }
+  if (!verifyListOwnership(listId, householdId)) {
+    res.status(404).json({ error: "List not found" });
+    return;
+  }
 
   const items = db.select().from(groceryItem)
     .where(eq(groceryItem.groceryListId, listId))

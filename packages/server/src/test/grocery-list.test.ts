@@ -1,137 +1,154 @@
 import {afterAll, beforeAll, describe, expect, it} from "vitest";
-import {createTestUser, getTestDb, setupAuthMock, setupTestDb, teardownTestDb} from "./setup.js";
+import {createTestUser, getTestDb, setMockSession, setupAuthMock, setupTestDb, teardownTestDb} from "./setup.js";
 import {eq} from "drizzle-orm";
 
 setupAuthMock();
 setupTestDb();
 
-const {groceryItem, recipe, weeklyPlan, weeklyPlanRecipe} = await import("../db/schema.js");
+const {groceryItem, groceryList, recipe, weeklyPlan, weeklyPlanRecipe} = await import("../db/schema.js");
 const {generateGroceryList} = await import("../services/lists.js");
+const {default: app} = await import("../app.js");
+const {default: request} = await import("supertest");
 
-describe("generateGroceryList", () => {
+describe("Grocery list", () => {
   let db: ReturnType<typeof getTestDb>;
   let householdId: string;
-  let planId: string;
+  let userId: string;
 
   beforeAll(() => {
     db = getTestDb();
     const testUser = createTestUser(db, "Grocery Test User");
     householdId = testUser.orgId;
-
-    // Create a weekly plan
-    planId = crypto.randomUUID();
-    db.insert(weeklyPlan).values({
-      id: planId,
-      householdId,
-      weekStart: "2026-03-30",
-      store: "jumbo",
-    }).run();
-
-    // Create a recipe with ingredients
-    const recipeId = crypto.randomUUID();
-    db.insert(recipe).values({
-      id: recipeId,
-      householdId,
-      title: "Pasta Bolognese",
-      servings: 4,
-      ingredients: [
-        { name: "Pasta", quantity: 500, unit: "g", category: "Pasta & Rijst" },
-        { name: "Gehakt", quantity: 400, unit: "g", category: "Vlees" },
-      ],
-      instructions: [],
-      tags: [],
-    }).run();
-
-    // Add recipe to plan
-    db.insert(weeklyPlanRecipe).values({
-      id: crypto.randomUUID(),
-      weeklyPlanId: planId,
-      recipeId,
-      servingsOverride: 4,
-    }).run();
+    userId = testUser.userId;
   });
 
   afterAll(() => {
     teardownTestDb();
   });
 
-  it("preserves manual items when regenerating the list", () => {
-    // Generate the initial list
-    const list = generateGroceryList(planId, householdId);
-    const listId = list.id;
+  describe("GET /lists/current", () => {
+    it("creates a list if none exists", async () => {
+      setMockSession(userId, householdId);
 
-    // Add a manual item to the list
-    const manualItemId = crypto.randomUUID();
-    db.insert(groceryItem).values({
-      id: manualItemId,
-      groceryListId: listId!,
-      name: "Kaas",
-      quantity: 1,
-      unit: "stuk",
-      category: "Zuivel",
-      source: "manual",
-      sortOrder: 100,
-    }).run();
+      const res = await request(app).get("/api/lists/current");
+      expect(res.status).toBe(200);
+      expect(res.body.id).toBeDefined();
+      expect(res.body.items).toEqual([]);
+    });
 
-    // Verify manual item exists
-    const itemsBefore = db.select().from(groceryItem).where(eq(groceryItem.groceryListId, listId!)).all();
-    const manualBefore = itemsBefore.filter((i) => i.source === "manual");
-    expect(manualBefore).toHaveLength(1);
-    expect(manualBefore[0].name).toBe("Kaas");
+    it("returns the same list on subsequent calls", async () => {
+      setMockSession(userId, householdId);
 
-    // Regenerate the list
-    const regenerated = generateGroceryList(planId, householdId);
+      const res1 = await request(app).get("/api/lists/current");
+      const res2 = await request(app).get("/api/lists/current");
+      expect(res1.body.id).toBe(res2.body.id);
+    });
 
-    // Should reuse the same list
-    expect(regenerated.id).toBe(listId);
-
-    // Manual item should still be there
-    const itemsAfter = regenerated.items;
-    const manualAfter = itemsAfter.filter((i: any) => i.source === "manual");
-    expect(manualAfter).toHaveLength(1);
-    expect(manualAfter[0].name).toBe("Kaas");
-    expect(manualAfter[0].id).toBe(manualItemId);
-
-    // Recipe items should be regenerated
-    const recipeItems = itemsAfter.filter((i: any) => i.source === "recipe");
-    expect(recipeItems.length).toBeGreaterThan(0);
+    it("returns 401 for unauthenticated requests", async () => {
+      const {clearMockSession} = await import("./setup.js");
+      clearMockSession();
+      const res = await request(app).get("/api/lists/current");
+      expect(res.status).toBe(401);
+    });
   });
 
-  it("generates recipe and staple items correctly", () => {
-    // Create a fresh plan without an existing list
-    const freshPlanId = crypto.randomUUID();
-    db.insert(weeklyPlan).values({
-      id: freshPlanId,
-      householdId,
-      weekStart: "2026-04-06",
-      store: "jumbo",
-    }).run();
+  describe("adding manual items without a plan", () => {
+    it("allows adding items to the list without any weekly plan", async () => {
+      setMockSession(userId, householdId);
 
-    const recipeId = crypto.randomUUID();
-    db.insert(recipe).values({
-      id: recipeId,
-      householdId,
-      title: "Salade",
-      servings: 2,
-      ingredients: [
-        { name: "Sla", quantity: 1, unit: "stuk", category: "Groente & Fruit" },
-      ],
-      instructions: [],
-      tags: [],
-    }).run();
+      // Get the household list
+      const listRes = await request(app).get("/api/lists/current");
+      const listId = listRes.body.id;
 
-    db.insert(weeklyPlanRecipe).values({
-      id: crypto.randomUUID(),
-      weeklyPlanId: freshPlanId,
-      recipeId,
-      servingsOverride: 2,
-    }).run();
+      // Add a manual item
+      const addRes = await request(app)
+        .post(`/api/lists/${listId}/items`)
+        .send({ name: "Brood", quantity: 1, unit: "stuk", category: "Brood & Bakkerij" });
 
-    const list = generateGroceryList(freshPlanId, householdId);
-    expect(list.items.length).toBeGreaterThan(0);
+      expect(addRes.status).toBe(201);
+      expect(addRes.body.name).toBe("Brood");
+      expect(addRes.body.source).toBe("manual");
 
-    const sla = list.items.find((i: any) => i.name === "Sla");
-    expect(sla).toBeDefined();
-    expect(sla!.source).toBe("recipe");
+      // Verify it shows up in the list
+      const updatedRes = await request(app).get("/api/lists/current");
+      const items = updatedRes.body.items;
+      expect(items.some((i: any) => i.name === "Brood")).toBe(true);
+    });
+  });
+
+  describe("generateGroceryList", () => {
+    it("preserves manual items when generating from a plan", async () => {
+      setMockSession(userId, householdId);
+
+      // Get the household list and clear any items from previous tests
+      const listRes = await request(app).get("/api/lists/current");
+      const listId = listRes.body.id;
+      db.delete(groceryItem).where(eq(groceryItem.groceryListId, listId)).run();
+
+      const manualItemId = crypto.randomUUID();
+      db.insert(groceryItem).values({
+        id: manualItemId,
+        groceryListId: listId,
+        name: "Kaas",
+        quantity: 1,
+        unit: "stuk",
+        category: "Zuivel",
+        source: "manual",
+        sortOrder: 100,
+      }).run();
+
+      // Create a plan with a recipe
+      const planId = crypto.randomUUID();
+      db.insert(weeklyPlan).values({
+        id: planId,
+        householdId,
+        weekStart: "2026-03-30",
+        store: "jumbo",
+      }).run();
+
+      const recipeId = crypto.randomUUID();
+      db.insert(recipe).values({
+        id: recipeId,
+        householdId,
+        title: "Pasta Bolognese",
+        servings: 4,
+        ingredients: [
+          {name: "Pasta", quantity: 500, unit: "g", category: "Pasta & Rijst"},
+          {name: "Gehakt", quantity: 400, unit: "g", category: "Vlees"},
+        ],
+        instructions: [],
+        tags: [],
+      }).run();
+
+      db.insert(weeklyPlanRecipe).values({
+        id: crypto.randomUUID(),
+        weeklyPlanId: planId,
+        recipeId,
+        servingsOverride: 4,
+      }).run();
+
+      // Generate the list — should reuse the household list
+      const generated = generateGroceryList(planId, householdId);
+
+      // Should reuse the same list
+      expect(generated.id).toBe(listId);
+
+      // Manual item should still be there
+      const manualItems = generated.items.filter((i: any) => i.source === "manual");
+      expect(manualItems).toHaveLength(1);
+      expect(manualItems[0].name).toBe("Kaas");
+      expect(manualItems[0].id).toBe(manualItemId);
+
+      // Recipe items should be present
+      const recipeItems = generated.items.filter((i: any) => i.source === "recipe");
+      expect(recipeItems.length).toBeGreaterThan(0);
+    });
+
+    it("links the list to the plan after generation", () => {
+      const list = db.select().from(groceryList)
+        .where(eq(groceryList.householdId, householdId))
+        .get();
+      expect(list?.weeklyPlanId).toBeDefined();
+    });
   });
 });

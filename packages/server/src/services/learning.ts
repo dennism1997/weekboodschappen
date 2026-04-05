@@ -18,21 +18,19 @@ export function recordShoppingTrip(listId: string, householdId: string) {
     throw new Error("List not found");
   }
 
-  // 2. Get the associated weekly plan
-  const plan = db
-    .select()
-    .from(weeklyPlan)
-    .where(
-      and(
-        eq(weeklyPlan.id, list.weeklyPlanId),
-        eq(weeklyPlan.householdId, householdId),
-      ),
-    )
-    .get();
-
-  if (!plan) {
-    throw new Error("Plan not found");
-  }
+  // 2. Get the associated weekly plan (if any)
+  const plan = list.weeklyPlanId
+    ? db
+        .select()
+        .from(weeklyPlan)
+        .where(
+          and(
+            eq(weeklyPlan.id, list.weeklyPlanId),
+            eq(weeklyPlan.householdId, householdId),
+          ),
+        )
+        .get()
+    : null;
 
   // 1b. Get all grocery items for this list
   const items = db
@@ -51,35 +49,37 @@ export function recordShoppingTrip(listId: string, householdId: string) {
         itemName: item.name,
         category: item.category,
         wasPurchased: item.status === "checked",
-        weekStart: plan.weekStart,
-        store: plan.store,
+        weekStart: plan?.weekStart ?? new Date().toISOString().split("T")[0],
+        store: plan?.store ?? "albert_heijn",
       })
       .run();
   }
 
-  // 4. Get all recipes in the plan and increment timesCooked
-  const planRecipes = db
-    .select()
-    .from(weeklyPlanRecipe)
-    .where(eq(weeklyPlanRecipe.weeklyPlanId, plan.id))
-    .all();
+  // 4. If there's a plan, get all recipes and increment timesCooked
+  if (plan) {
+    const planRecipes = db
+      .select()
+      .from(weeklyPlanRecipe)
+      .where(eq(weeklyPlanRecipe.weeklyPlanId, plan.id))
+      .all();
 
-  const now = new Date().toISOString();
-  for (const pr of planRecipes) {
-    db.update(recipe)
-      .set({
-        timesCooked: sql`${recipe.timesCooked} + 1`,
-        lastCookedAt: now,
-      })
-      .where(eq(recipe.id, pr.recipeId))
+    const now = new Date().toISOString();
+    for (const pr of planRecipes) {
+      db.update(recipe)
+        .set({
+          timesCooked: sql`${recipe.timesCooked} + 1`,
+          lastCookedAt: now,
+        })
+        .where(eq(recipe.id, pr.recipeId))
+        .run();
+    }
+
+    // 5. Update the weekly plan status to completed
+    db.update(weeklyPlan)
+      .set({ status: "completed" })
+      .where(eq(weeklyPlan.id, plan.id))
       .run();
   }
-
-  // 5. Update the weekly plan status to completed
-  db.update(weeklyPlan)
-    .set({ status: "completed" })
-    .where(eq(weeklyPlan.id, plan.id))
-    .run();
 
   return items.length;
 }

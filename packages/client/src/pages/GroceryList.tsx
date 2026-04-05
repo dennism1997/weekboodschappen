@@ -26,13 +26,8 @@ interface GroceryItem {
 
 interface GroceryListData {
   id: string;
-  planId: string;
+  planId: string | null;
   items: GroceryItem[];
-}
-
-interface Plan {
-  id: string;
-  listId: string | null;
 }
 
 const STORES = ["Jumbo", "Albert Heijn"];
@@ -63,13 +58,7 @@ export default function GroceryList() {
 
   const { data: list = null, isLoading: loading } = useQuery({
     queryKey: ["grocery-list"],
-    queryFn: async () => {
-      const plan = await apiFetch<Plan>("/plans/current");
-      if (plan.listId) {
-        return apiFetch<GroceryListData>(`/lists/${plan.listId}`);
-      }
-      return null;
-    },
+    queryFn: () => apiFetch<GroceryListData>("/lists/current"),
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ["grocery-list"] });
@@ -239,23 +228,7 @@ export default function GroceryList() {
   }
 
   if (!list) {
-    return (
-      <div>
-        <h1 className="text-[34px] font-bold text-ios-label">Boodschappen</h1>
-        <div className="py-12 text-center">
-          <p className="text-[17px] text-ios-secondary">Geen boodschappenlijst gevonden.</p>
-          <p className="mt-1 text-[13px] text-ios-tertiary">
-            Maak eerst een weekplan en genereer een lijst.
-          </p>
-          <button
-            onClick={() => navigate("/planner")}
-            className="mt-4 rounded-[14px] bg-accent px-5 py-3 text-[17px] font-semibold text-white"
-          >
-            Naar weekplanner
-          </button>
-        </div>
-      </div>
-    );
+    return <p className="py-12 text-center text-[13px] text-ios-secondary">Laden...</p>;
   }
 
   const totalItems = list.items.length;

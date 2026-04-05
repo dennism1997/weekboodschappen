@@ -72,8 +72,8 @@ export const weeklyPlanRecipe = sqliteTable("weekly_plan_recipe", {
 
 export const groceryList = sqliteTable("grocery_list", {
   id: text("id").primaryKey(),
+  householdId: text("household_id").notNull(),
   weeklyPlanId: text("weekly_plan_id")
-    .notNull()
     .references(() => weeklyPlan.id),
   createdAt: text("created_at")
     .notNull()
