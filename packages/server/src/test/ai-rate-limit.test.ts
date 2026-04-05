@@ -23,8 +23,8 @@ vi.doMock("../services/ai-scraper.js", () => ({
   })),
 }));
 
-vi.doMock("../services/recommendations.js", () => ({
-  getRecommendations: vi.fn(async () => []),
+vi.doMock("../services/suggestions.js", () => ({
+  getSuggestions: vi.fn(async () => []),
   getCachedSuggestions: vi.fn(() => []),
   refreshCachedSuggestions: vi.fn(async () => {}),
 }));
@@ -58,9 +58,9 @@ describe("AI rate limiting", () => {
       { method: "post", path: "/api/recipes/scrape", body: { url: "https://example.com/recipe" } },
       { method: "post", path: "/api/recipes/from-suggestion", body: { title: "Test", ingredients: ["a"] } },
       { method: "post", path: "/api/recipes/categorize", body: { ingredients: ["melk"] } },
-      { method: "get", path: "/api/plans/current/recommendations" },
-      { method: "post", path: "/api/plans/current/recommendations/refresh" },
-      { method: "post", path: "/api/plans/current/recommendations/more", body: { exclude: [] } },
+      { method: "get", path: "/api/plans/current/suggestions" },
+      { method: "post", path: "/api/plans/current/suggestions/refresh" },
+      { method: "post", path: "/api/plans/current/suggestions/more", body: { exclude: [] } },
     ];
 
     for (const ep of endpoints) {

@@ -5,7 +5,7 @@ import {and, desc, eq} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {generateGroceryList} from "../services/lists.js";
 import {addRecipeToPlanSchema, validate} from "../validation/schemas.js";
-import {getCachedSuggestions, getRecommendations, refreshCachedSuggestions} from "../services/recommendations.js";
+import {getCachedSuggestions, getSuggestions, refreshCachedSuggestions} from "../services/suggestions.js";
 import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
 
 const router = Router();
@@ -153,8 +153,8 @@ router.get("/current", (req, res) => {
   res.json(getPlanWithRecipes(plan.id));
 });
 
-// GET /current/recommendations — Get cached recipe suggestions
-router.get("/current/recommendations", aiRateLimiter, async (req, res) => {
+// GET /current/suggestions — Get cached recipe suggestions
+router.get("/current/suggestions", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
 
   // Return cached suggestions
@@ -166,7 +166,7 @@ router.get("/current/recommendations", aiRateLimiter, async (req, res) => {
 
   // No cache — generate live
   try {
-    const suggestions = await getRecommendations(householdId);
+    const suggestions = await getSuggestions(householdId);
     if (suggestions.length > 0) {
       res.json(suggestions);
       return;
@@ -202,8 +202,8 @@ router.get("/current/recommendations", aiRateLimiter, async (req, res) => {
   res.json(fallback);
 });
 
-// POST /current/recommendations/refresh — Regenerate all suggestions
-router.post("/current/recommendations/refresh", aiRateLimiter, async (req, res) => {
+// POST /current/suggestions/refresh — Regenerate all suggestions
+router.post("/current/suggestions/refresh", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
 
   try {
@@ -216,13 +216,13 @@ router.post("/current/recommendations/refresh", aiRateLimiter, async (req, res) 
   }
 });
 
-// POST /current/recommendations/more — Load additional suggestions (excluding already shown)
-router.post("/current/recommendations/more", aiRateLimiter, async (req, res) => {
+// POST /current/suggestions/more — Load additional suggestions (excluding already shown)
+router.post("/current/suggestions/more", aiRateLimiter, async (req, res) => {
   const householdId = req.user!.householdId;
   const exclude: string[] = req.body.exclude || [];
 
   try {
-    const suggestions = await getRecommendations(householdId, exclude);
+    const suggestions = await getSuggestions(householdId, exclude);
     res.json(suggestions);
   } catch (err) {
     console.error("Failed to load more suggestions:", err);

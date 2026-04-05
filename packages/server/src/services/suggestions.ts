@@ -50,28 +50,25 @@ async function getWebsiteSuggestions(
   discounts: Discount[],
   excludeTitles: string[],
 ): Promise<Suggestion[]> {
-  if (discounts.length === 0) {
-    console.log("No current discounts, skipping web recipe suggestions");
-    return [];
-  }
-
-  const discountList = discounts
-    .slice(0, 20)
-    .map((d) => `- ${d.productName} (${d.store}, -${d.discountPercentage}%)`)
-    .join("\n");
+  const discountList = discounts.length > 0
+    ? discounts
+        .slice(0, 20)
+        .map((d) => `- ${d.productName} (${d.store}, -${d.discountPercentage}%)`)
+        .join("\n")
+    : "Geen aanbiedingen op dit moment.";
 
   const excludeSection = excludeTitles.length > 0
     ? `\n\nRecepten om te vermijden (al getoond):\n${excludeTitles.map((t) => `- ${t}`).join("\n")}`
     : "";
 
-  const prompt = `Je bent een Nederlands recepten-assistent. Zoek op het web naar recepten die gebruikmaken van ingrediënten die nu in de aanbieding zijn.
+  const prompt = `Je bent een Nederlands recepten-assistent. Zoek op het web naar lekkere hoofdgerechten.
 
-Ingrediënten in de aanbieding:
+Deze ingrediënten zijn in de aanbieding (bonus, geen vereiste):
 ${discountList}${excludeSection}
 
-Zoek naar 5 verschillende Nederlandse hoofdgerechten die zoveel mogelijk aanbiedingsingrediënten bevatten.
+Zoek 5 verschillende Nederlandse hoofdgerechten op receptenwebsites (leukerecepten.nl, ah.nl/allerhande, jumbo.com, etc.).
+Het is niet nodig dat recepten aanbiedingsingrediënten bevatten — het is een bonus, geen vereiste.
 Alleen hoofdgerechten — geen voorgerechten, bijgerechten, desserts, snacks of soepen.
-Focus op Nederlandse receptenwebsites (leukerecepten.nl, ah.nl/allerhande, jumbo.com, etc.).
 
 Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet deze velden hebben:
 - "title": naam van het recept
@@ -79,9 +76,12 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
 - "ingredients": array van ingrediëntnamen (alleen de namen, geen hoeveelheden)
 - "recipeUrl": de URL van het recept
 - "rating": beoordeling als gevonden (getal 1-5), of null
-- "discountMatches": array van aanbiedingsingrediënten die in het recept zitten`;
+- "discountMatches": array van aanbiedingsingrediënten die in het recept zitten (mag leeg zijn)`;
 
   try {
+    console.log("[web-search] Starting API call...");
+    const startTime = Date.now();
+
     let response = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 4096,
@@ -94,9 +94,12 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
       messages: [{ role: "user", content: prompt }],
     });
 
+    console.log(`[web-search] Initial response in ${((Date.now() - startTime) / 1000).toFixed(1)}s — stop_reason: ${response.stop_reason}, blocks: ${response.content.length}, usage: ${response.usage.input_tokens}in/${response.usage.output_tokens}out`);
+
     // Handle pause_turn (server-side tool loop continuation)
     let continuations = 0;
     while (response.stop_reason === "pause_turn" && continuations < 3) {
+      const contStart = Date.now();
       response = await client.messages.create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 4096,
@@ -107,7 +110,10 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
         ],
       });
       continuations++;
+      console.log(`[web-search] Continuation ${continuations} in ${((Date.now() - contStart) / 1000).toFixed(1)}s — stop_reason: ${response.stop_reason}, blocks: ${response.content.length}`);
     }
+
+    console.log(`[web-search] Total time: ${((Date.now() - startTime) / 1000).toFixed(1)}s, continuations: ${continuations}`);
 
     // Extract text blocks from response
     const text = response.content
@@ -115,14 +121,26 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
       .map((block) => (block as { type: "text"; text: string }).text)
       .join("\n");
 
-    // Parse JSON from response (may be wrapped in code fences)
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
+    console.log("Web search response stop_reason:", response.stop_reason);
+    console.log("Web search response content types:", response.content.map((b) => b.type).join(", "));
+    console.log("Web search response text:", text.slice(0, 500));
+
+    // Parse JSON from response — try code fence extraction first, then raw match
+    let jsonStr: string | null = null;
+    const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) {
+      jsonStr = fenceMatch[1].trim();
+    } else {
+      const arrayMatch = text.match(/\[[\s\S]*\]/);
+      if (arrayMatch) jsonStr = arrayMatch[0];
+    }
+
+    if (!jsonStr) {
       console.log("No JSON array found in web search response");
       return [];
     }
 
-    const parsed = JSON.parse(jsonMatch[0]) as Array<{
+    const parsed = JSON.parse(jsonStr) as Array<{
       title: string;
       description: string;
       ingredients: string[];
@@ -147,20 +165,37 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
   }
 }
 
+// Only one suggestion request per household at a time
+const inFlight = new Map<string, Promise<Suggestion[]>>();
+
 /**
- * Get recommendations: own recipes + website recipes.
+ * Get suggestions: website recipes.
  * Pass exclude to skip already-shown titles.
+ * Deduplicates concurrent calls for the same household.
  */
-export async function getRecommendations(
+export function getSuggestions(
   householdId: string,
   exclude: string[] = [],
 ): Promise<Suggestion[]> {
-  const discounts = getCurrentDiscounts();
+  const key = `${householdId}:${exclude.join(",")}`;
+  const existing = inFlight.get(key);
+  if (existing) {
+    console.log(`[suggestions] Reusing in-flight request for household ${householdId}`);
+    return existing;
+  }
 
-  const websiteSuggestions = await getWebsiteSuggestions(householdId, discounts, exclude);
-  console.log(`Generated ${websiteSuggestions.length} website suggestions`);
+  const promise = (async () => {
+    console.log(`[suggestions] Generating for household ${householdId}`);
+    const discounts = getCurrentDiscounts();
+    const suggestions = await getWebsiteSuggestions(householdId, discounts, exclude);
+    console.log(`[suggestions] Generated ${suggestions.length} website suggestions`);
+    return suggestions;
+  })().finally(() => {
+    inFlight.delete(key);
+  });
 
-  return websiteSuggestions;
+  inFlight.set(key, promise);
+  return promise;
 }
 
 /**
@@ -183,7 +218,7 @@ export async function refreshCachedSuggestions(
   householdId: string,
 ): Promise<void> {
   try {
-    const suggestions = await getRecommendations(householdId);
+    const suggestions = await getSuggestions(householdId);
 
     // Clear old cached suggestions
     db.delete(cachedSuggestion)

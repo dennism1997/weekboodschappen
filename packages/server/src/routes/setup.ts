@@ -4,7 +4,7 @@ import {db} from "../db/connection.js";
 import {member, organization, recoveryToken, user} from "../db/auth-schema.js";
 import {count} from "drizzle-orm";
 import {auth} from "../auth.js";
-import {refreshCachedSuggestions} from "../services/recommendations.js";
+import {refreshCachedSuggestions} from "../services/suggestions.js";
 import {favoriteWebsite} from "../db/schema.js";
 
 const router = Router();

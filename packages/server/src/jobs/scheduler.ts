@@ -3,7 +3,7 @@ import {db} from "../db/connection.js";
 import {cachedSuggestion, productDiscount} from "../db/schema.js";
 import {sql} from "drizzle-orm";
 import {refreshAllDiscounts} from "../services/discounts.js";
-import {refreshAllCachedSuggestions} from "../services/recommendations.js";
+import {refreshAllCachedSuggestions} from "../services/suggestions.js";
 import {sendPushoverNotification} from "../services/pushover.js";
 import {statSync} from "node:fs";
 

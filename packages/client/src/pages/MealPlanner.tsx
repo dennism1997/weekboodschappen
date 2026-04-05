@@ -144,7 +144,7 @@ export default function MealPlanner() {
 
   const { data: initialSuggestions = [], isLoading: suggestionsLoading } = useQuery({
     queryKey: ["meal-suggestions"],
-    queryFn: () => apiFetch<Suggestion[]>("/plans/current/recommendations"),
+    queryFn: () => apiFetch<Suggestion[]>("/plans/current/suggestions"),
   });
 
   // Seed accumulated suggestions from initial load
@@ -158,7 +158,7 @@ export default function MealPlanner() {
     setLoadingMore(true);
     try {
       const newSuggestions = await apiFetch<Suggestion[]>(
-        "/plans/current/recommendations/refresh",
+        "/plans/current/suggestions/refresh",
         { method: "POST" }
       );
       setAllSuggestions(newSuggestions);
@@ -175,7 +175,7 @@ export default function MealPlanner() {
     try {
       const excludeTitles = allSuggestions.map((s) => s.title);
       const moreSuggestions = await apiFetch<Suggestion[]>(
-        "/plans/current/recommendations/more",
+        "/plans/current/suggestions/more",
         {
           method: "POST",
           body: JSON.stringify({ exclude: excludeTitles }),
