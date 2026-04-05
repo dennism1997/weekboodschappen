@@ -4,7 +4,7 @@ export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./migrations",
   dialect: "sqlite",
-  dbCredentials: {
+  dbCredentials: {// @ts-ignore
     url: process.env.DATABASE_PATH || "./data/weekboodschappen.db",
   },
 });
