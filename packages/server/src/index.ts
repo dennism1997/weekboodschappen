@@ -3,17 +3,15 @@ import path from "node:path";
 import {fileURLToPath} from "node:url";
 import app from "./app.js";
 import {migrate} from "drizzle-orm/better-sqlite3/migrator";
-import {db, sqlite} from "./db/connection.js";
+import {db} from "./db/connection.js";
 import {initScheduler} from "./jobs/scheduler.js";
 import {initSocketIO} from "./websocket/index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || "6883", 10);
 
-// Run migrations on startup (disable FK checks so table-swap migrations work)
-sqlite.pragma("foreign_keys = OFF");
+// Run migrations on startup
 migrate(db, { migrationsFolder: path.resolve(__dirname, "../migrations") });
-sqlite.pragma("foreign_keys = ON");
 console.log("Database migrations applied.");
 
 const server = createServer(app);
