@@ -11,6 +11,8 @@ RUN pnpm install --frozen-lockfile
 
 # Build client
 FROM deps AS build-client
+ARG VITE_PUBLIC_POSTHOG_PROJECT_TOKEN
+ARG VITE_PUBLIC_POSTHOG_HOST
 COPY packages/client/ packages/client/
 RUN pnpm --filter @weekboodschappen/client build
 
