@@ -1,11 +1,7 @@
 services:
   weekboodschappen:
     container_name: weekboodschappen
-    build:
-      context: .
-      args:
-        - VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=${VITE_PUBLIC_POSTHOG_PROJECT_TOKEN}
-        - VITE_PUBLIC_POSTHOG_HOST=${VITE_PUBLIC_POSTHOG_HOST:-https://eu.i.posthog.com}
+    build: .
     restart: unless-stopped
     ports:
       - "6883:6883"

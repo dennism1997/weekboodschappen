@@ -66,6 +66,13 @@ app.use("/api/discounts", discountRoutes);
 app.use("/api/websites", websiteRoutes);
 app.use("/api/admin", adminRoutes);
 
+app.get("/api/config", (_req, res) => {
+  res.json({
+    posthogToken: process.env.POSTHOG_API_KEY || null,
+    posthogHost: process.env.POSTHOG_HOST || null,
+  });
+});
+
 app.get("/api/health", (_req, res) => {
   try {
     db.run(sql`SELECT 1`);

@@ -7,11 +7,6 @@ import {PostHogErrorBoundary, PostHogProvider} from "@posthog/react";
 import App from "./App.js";
 import "./index.css";
 
-posthog.init(import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN, {
-  api_host: import.meta.env.VITE_PUBLIC_POSTHOG_HOST,
-  defaults: "2026-01-30",
-});
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,16 +16,33 @@ const queryClient = new QueryClient({
   },
 });
 
-createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <PostHogProvider client={posthog}>
-      <PostHogErrorBoundary>
-        <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </QueryClientProvider>
-      </PostHogErrorBoundary>
-    </PostHogProvider>
-  </StrictMode>,
-);
+async function init() {
+  try {
+    const res = await fetch("/api/config");
+    const config = await res.json();
+    if (config.posthogToken) {
+      posthog.init(config.posthogToken, {
+        api_host: config.posthogHost || "https://eu.i.posthog.com",
+        defaults: "2026-01-30",
+      });
+    }
+  } catch {
+    // PostHog is optional — app works without it
+  }
+
+  createRoot(document.getElementById("root")!).render(
+    <StrictMode>
+      <PostHogProvider client={posthog}>
+        <PostHogErrorBoundary>
+          <QueryClientProvider client={queryClient}>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </QueryClientProvider>
+        </PostHogErrorBoundary>
+      </PostHogProvider>
+    </StrictMode>,
+  );
+}
+
+init();
