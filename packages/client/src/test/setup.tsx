@@ -14,6 +14,7 @@ vi.mock("../lib/auth-client.js", () => ({
   authClient: {
     useSession: vi.fn(() => ({ data: null, isPending: false })),
     useActiveOrganization: vi.fn(() => ({ data: null })),
+    getSession: vi.fn(async () => ({ data: { user: { id: "test-user", name: "Test" } } })),
     signOut: vi.fn(),
     organization: {
       create: vi.fn(),
