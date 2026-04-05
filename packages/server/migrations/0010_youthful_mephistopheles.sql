@@ -1,4 +1,3 @@
-PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_grocery_list` (
 	`id` text PRIMARY KEY NOT NULL,
 	`household_id` text NOT NULL DEFAULT '',
@@ -11,5 +10,4 @@ INSERT INTO `__new_grocery_list`("id", "household_id", "weekly_plan_id", "create
   FROM `grocery_list` gl
   LEFT JOIN `weekly_plan` wp ON wp."id" = gl."weekly_plan_id";--> statement-breakpoint
 DROP TABLE `grocery_list`;--> statement-breakpoint
-ALTER TABLE `__new_grocery_list` RENAME TO `grocery_list`;--> statement-breakpoint
-PRAGMA foreign_keys=ON;
+ALTER TABLE `__new_grocery_list` RENAME TO `grocery_list`;

@@ -28,12 +28,13 @@ export function setupTestDb() {
   const dbPath = join(tempDir, "test.db");
   sqlite = new Database(dbPath);
   sqlite.pragma("journal_mode = WAL");
-  sqlite.pragma("foreign_keys = ON");
   testDb = drizzle(sqlite, { schema });
 
-  // Run migrations
+  // Run migrations (FK checks off so table-swap migrations work)
+  sqlite.pragma("foreign_keys = OFF");
   const migrationsFolder = join(import.meta.dirname, "../../migrations");
   migrate(testDb, { migrationsFolder });
+  sqlite.pragma("foreign_keys = ON");
 
   // Mock the db module so all route code uses our test DB
   vi.doMock("../db/connection.js", () => ({
