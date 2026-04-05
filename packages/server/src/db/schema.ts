@@ -33,6 +33,9 @@ export const recipe = sqliteTable("recipe", {
     .notNull()
     .$type<string[]>()
     .default([]),
+  status: text("status", {
+    enum: ["ready", "pending", "failed"],
+  }).notNull().default("ready"),
   timesCooked: integer("times_cooked").notNull().default(0),
   lastCookedAt: text("last_cooked_at"),
   createdAt: text("created_at")

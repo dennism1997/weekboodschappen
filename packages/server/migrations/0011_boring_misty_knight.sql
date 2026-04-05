@@ -1,0 +1,1 @@
+ALTER TABLE `recipe` ADD `status` text DEFAULT 'ready' NOT NULL;

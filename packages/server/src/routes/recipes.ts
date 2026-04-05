@@ -3,7 +3,7 @@ import {db} from "../db/connection.js";
 import {groceryItem, recipe, weeklyPlanRecipe} from "../db/schema.js";
 import {and, eq, like} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
-import {scrapeRecipe} from "../services/ai-scraper.js";
+import {scrapeRecipe, enrichRecipe} from "../services/ai-scraper.js";
 import {categorizeBatchWithAI} from "../services/ai.js";
 import {categorizeIngredientSync} from "../utils/categories.js";
 import {scrapeRecipeSchema, validate} from "../validation/schemas.js";
@@ -17,28 +17,29 @@ router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, 
   const { url } = req.body;
 
   try {
-    const scraped = await scrapeRecipe(url, req.user!.userId);
+    const scraped = await scrapeRecipe(url);
 
-    // Find ingredients that couldn't be categorized statically
-    const unknowns = scraped.ingredients
-      .filter((i) => categorizeIngredientSync(i.name) === null)
-      .map((i) => i.name);
+    // Categorize ingredients that don't have a known category
+    if (scraped.ingredients.length > 0) {
+      const unknowns = scraped.ingredients
+        .filter((i) => categorizeIngredientSync(i.name) === null)
+        .map((i) => i.name);
 
-    // Use AI to categorize unknowns
-    if (unknowns.length > 0) {
-      try {
-        const aiCategories = await categorizeBatchWithAI(unknowns, req.user!.userId);
-        for (const ing of scraped.ingredients) {
-          if (categorizeIngredientSync(ing.name) === null && aiCategories[ing.name]) {
-            ing.category = aiCategories[ing.name];
+      if (unknowns.length > 0) {
+        try {
+          const aiCategories = await categorizeBatchWithAI(unknowns, req.user!.userId);
+          for (const ing of scraped.ingredients) {
+            if (categorizeIngredientSync(ing.name) === null && aiCategories[ing.name]) {
+              ing.category = aiCategories[ing.name];
+            }
           }
+        } catch {
+          // AI categorization failed — ingredients stay as "Overig"
         }
-      } catch {
-        // AI categorization failed — ingredients stay as "Overig"
       }
     }
 
-    // Remove heading-only steps (e.g. "**Bereiding**", "**Voor de saus**")
+    // Clean up instructions
     let stepNum = 1;
     const cleanedInstructions = scraped.instructions
       .filter((s) => !(/^\*\*[^*]+\*\*$/.test(s.text.trim())))
@@ -59,8 +60,16 @@ router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, 
         ingredients: scraped.ingredients,
         instructions: cleanedInstructions,
         tags: [],
+        status: scraped.needsEnrichment ? "pending" : "ready",
       })
       .run();
+
+    // If pending, enrich with Playwright + Claude in the background
+    if (scraped.needsEnrichment) {
+      enrichRecipe(id, url, req.user!.userId).catch((err) =>
+        console.error(`[recipes] Background enrichment failed for ${id}:`, err)
+      );
+    }
 
     const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
     posthog.capture({
@@ -71,6 +80,7 @@ router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, 
         recipe_title: scraped.title,
         source_url: scraped.sourceUrl,
         ingredient_count: scraped.ingredients.length,
+        method: scraped.needsEnrichment ? "claude_fallback" : "json_ld",
       },
     });
     res.json(saved);
@@ -88,53 +98,51 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
     return;
   }
 
-  // If we have a URL, scrape the full recipe (includes instructions, image, etc.)
+  // If we have a URL, try scraping the full recipe (JSON-LD extraction)
   if (recipeUrl) {
     try {
-      const scraped = await scrapeRecipe(recipeUrl, req.user!.userId);
-      let stepNum = 1;
-      const cleanedInstructions = scraped.instructions
-        .filter((s) => !(/^\*\*[^*]+\*\*$/.test(s.text.trim())))
-        .map((s) => ({ step: stepNum++, text: s.text }));
+      const scraped = await scrapeRecipe(recipeUrl);
 
-      const id = crypto.randomUUID();
-      db.insert(recipe)
-        .values({
-          id,
-          householdId: req.user!.householdId,
-          title: scraped.title,
-          sourceUrl: scraped.sourceUrl,
-          imageUrl: scraped.imageUrl,
-          servings: scraped.servings,
-          prepTimeMinutes: scraped.prepTimeMinutes,
-          cookTimeMinutes: scraped.cookTimeMinutes,
-          ingredients: scraped.ingredients,
-          instructions: cleanedInstructions,
-          tags: [],
-        })
-        .run();
+      // If scrape got real data (JSON-LD), use it
+      if (!scraped.needsEnrichment && scraped.ingredients.length > 0) {
+        let stepNum = 1;
+        const cleanedInstructions = scraped.instructions
+          .filter((s) => !(/^\*\*[^*]+\*\*$/.test(s.text.trim())))
+          .map((s) => ({ step: stepNum++, text: s.text }));
 
-      const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
-      posthog.capture({
-        distinctId: req.user!.userId,
-        event: "recipe added from suggestion",
-        properties: {
-          recipe_id: id,
-          recipe_title: scraped.title,
-          source: "scrape",
-          has_url: true,
-        },
-      });
-      res.json(saved);
-      return;
-    } catch (err: any) {
-      posthog.captureException(err, req.user!.userId, { recipe_url: recipeUrl });
-      res.status(422).json({ error: `Failed to scrape recipe: ${err.message}` });
-      return;
+        const id = crypto.randomUUID();
+        db.insert(recipe)
+          .values({
+            id,
+            householdId: req.user!.householdId,
+            title: scraped.title,
+            sourceUrl: scraped.sourceUrl,
+            imageUrl: scraped.imageUrl,
+            servings: scraped.servings,
+            prepTimeMinutes: scraped.prepTimeMinutes,
+            cookTimeMinutes: scraped.cookTimeMinutes,
+            ingredients: scraped.ingredients,
+            instructions: cleanedInstructions,
+            tags: [],
+          })
+          .run();
+
+        const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
+        posthog.capture({
+          distinctId: req.user!.userId,
+          event: "recipe added from suggestion",
+          properties: { recipe_id: id, recipe_title: scraped.title, source: "json_ld" },
+        });
+        res.json(saved);
+        return;
+      }
+      // Scrape didn't get ingredients (403 or no JSON-LD) — fall through to save from suggestion data
+    } catch {
+      // Scrape failed entirely — fall through
     }
   }
 
-  // Fallback: save from suggestion data without full scrape
+  // Save from suggestion data (title + ingredients from the web search)
   const unknowns: string[] = [];
   const categorized: { name: string; quantity: number; unit: string; category: string }[] = [];
 
@@ -162,17 +170,27 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
   }
 
   const id = crypto.randomUUID();
+  const needsEnrichment = !!recipeUrl;
   db.insert(recipe)
     .values({
       id,
       householdId: req.user!.householdId,
       title,
+      sourceUrl: recipeUrl || null,
       servings: 4,
       ingredients: categorized,
       instructions: [],
       tags: description ? [description] : [],
+      status: needsEnrichment ? "pending" : "ready",
     })
     .run();
+
+  // Enrich in the background (Playwright + Claude for instructions, image, etc.)
+  if (needsEnrichment) {
+    enrichRecipe(id, recipeUrl, req.user!.userId).catch((err) =>
+      console.error(`[recipes] Background enrichment failed for ${id}:`, err)
+    );
+  }
 
   const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
   posthog.capture({
@@ -182,7 +200,7 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
       recipe_id: id,
       recipe_title: title,
       source: "suggestion_data",
-      has_url: false,
+      has_url: !!recipeUrl,
     },
   });
   res.json(saved);

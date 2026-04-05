@@ -9,6 +9,7 @@
     "dev:client": "pnpm --filter @weekboodschappen/client dev",
     "db:reset": "pnpm --filter @weekboodschappen/server db:reset",
     "test": "pnpm -r run test",
+    "test:docker": "pnpm --filter @weekboodschappen/server run test:docker",
     "typecheck": "pnpm -r run typecheck"
   },
   "pnpm": {
