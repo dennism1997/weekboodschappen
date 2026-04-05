@@ -7,6 +7,7 @@ import {generateGroceryList} from "../services/lists.js";
 import {addRecipeToPlanSchema, validate} from "../validation/schemas.js";
 import {getCachedSuggestions, getSuggestions, refreshCachedSuggestions} from "../services/suggestions.js";
 import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
+import {posthog} from "../posthog.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -117,6 +118,11 @@ router.post("/", (req, res) => {
     .values({ id, householdId, weekStart, store })
     .run();
 
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "plan created",
+    properties: { plan_id: id, week_start: weekStart, store },
+  });
   const result = getPlanWithRecipes(id);
   res.status(201).json(result);
 });
@@ -166,7 +172,7 @@ router.get("/current/suggestions", aiRateLimiter, async (req, res) => {
 
   // No cache — generate live
   try {
-    const suggestions = await getSuggestions(householdId);
+    const suggestions = await getSuggestions(householdId, [], req.user!.userId);
     if (suggestions.length > 0) {
       res.json(suggestions);
       return;
@@ -222,7 +228,7 @@ router.post("/current/suggestions/more", aiRateLimiter, async (req, res) => {
   const exclude: string[] = req.body.exclude || [];
 
   try {
-    const suggestions = await getSuggestions(householdId, exclude);
+    const suggestions = await getSuggestions(householdId, exclude, req.user!.userId);
     res.json(suggestions);
   } catch (err) {
     console.error("Failed to load more suggestions:", err);
@@ -323,6 +329,17 @@ router.post("/:id/recipes", validate(addRecipeToPlanSchema), (req: any, res: any
     })
     .run();
 
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "recipe added to plan",
+    properties: {
+      plan_id: plan.id,
+      recipe_id: recipeId,
+      recipe_title: r.title,
+      day,
+      servings: servings || r.servings,
+    },
+  });
   res.json(getPlanWithRecipes(plan.id));
 });
 
@@ -402,6 +419,11 @@ router.delete("/:id/recipes/:recipeId", (req, res) => {
     )
     .run();
 
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "recipe removed from plan",
+    properties: { plan_id: plan.id, recipe_id: req.params.recipeId },
+  });
   res.json(getPlanWithRecipes(plan.id));
 });
 
@@ -426,8 +448,19 @@ router.post("/:planId/generate-list", async (req, res) => {
 
   try {
     const list = generateGroceryList(plan.id, householdId);
+    posthog.capture({
+      distinctId: req.user!.userId,
+      event: "grocery list generated",
+      properties: {
+        plan_id: plan.id,
+        list_id: list.id,
+        store: plan.store,
+        item_count: list.items?.length ?? 0,
+      },
+    });
     res.status(201).json(list);
   } catch (err: any) {
+    posthog.captureException(err, req.user!.userId, { plan_id: plan.id });
     res.status(500).json({ error: `Failed to generate list: ${err.message}` });
   }
 });

@@ -46,9 +46,9 @@ function getCurrentDiscounts(): Discount[] {
  * Use Claude web search to find Dutch recipes that use discounted ingredients.
  */
 async function getWebsiteSuggestions(
-  _householdId: string,
   discounts: Discount[],
   excludeTitles: string[],
+  distinctId?: string,
 ): Promise<Suggestion[]> {
   const discountList = discounts.length > 0
     ? discounts
@@ -81,8 +81,10 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
   try {
     console.log("[web-search] Starting API call...");
     const startTime = Date.now();
+    // @posthog/ai types don't include MonitoringParams on the non-streaming overload
+    const create = client.messages.create.bind(client.messages) as any;
 
-    let response = await client.messages.create({
+    let response = await create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 4096,
       tools: [
@@ -92,6 +94,7 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
         },
       ],
       messages: [{ role: "user", content: prompt }],
+      posthogDistinctId: distinctId,
     });
 
     console.log(`[web-search] Initial response in ${((Date.now() - startTime) / 1000).toFixed(1)}s — stop_reason: ${response.stop_reason}, blocks: ${response.content.length}, usage: ${response.usage.input_tokens}in/${response.usage.output_tokens}out`);
@@ -100,10 +103,11 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
     let continuations = 0;
     while (response.stop_reason === "pause_turn" && continuations < 3) {
       const contStart = Date.now();
-      response = await client.messages.create({
+      response = await create({
         model: "claude-haiku-4-5-20251001",
         max_tokens: 4096,
         tools: [{ type: "web_search_20250305", name: "web_search" }],
+        posthogDistinctId: distinctId,
         messages: [
           { role: "user", content: prompt },
           { role: "assistant", content: response.content },
@@ -117,12 +121,12 @@ Antwoord ALLEEN met een JSON array (geen markdown, geen uitleg). Elk object moet
 
     // Extract text blocks from response
     const text = response.content
-      .filter((block) => block.type === "text")
-      .map((block) => (block as { type: "text"; text: string }).text)
+      .filter((block: any) => block.type === "text")
+      .map((block: any) => block.text)
       .join("\n");
 
     console.log("Web search response stop_reason:", response.stop_reason);
-    console.log("Web search response content types:", response.content.map((b) => b.type).join(", "));
+    console.log("Web search response content types:", response.content.map((b: any) => b.type).join(", "));
     console.log("Web search response text:", text.slice(0, 500));
 
     // Parse JSON from response — try code fence extraction first, then raw match
@@ -176,6 +180,7 @@ const inFlight = new Map<string, Promise<Suggestion[]>>();
 export function getSuggestions(
   householdId: string,
   exclude: string[] = [],
+  distinctId?: string,
 ): Promise<Suggestion[]> {
   const key = `${householdId}:${exclude.join(",")}`;
   const existing = inFlight.get(key);
@@ -187,7 +192,7 @@ export function getSuggestions(
   const promise = (async () => {
     console.log(`[suggestions] Generating for household ${householdId}`);
     const discounts = getCurrentDiscounts();
-    const suggestions = await getWebsiteSuggestions(householdId, discounts, exclude);
+    const suggestions = await getWebsiteSuggestions(discounts, exclude, distinctId);
     console.log(`[suggestions] Generated ${suggestions.length} website suggestions`);
     return suggestions;
   })().finally(() => {

@@ -22,6 +22,7 @@ import recoveryRoutes from "./routes/recovery.js";
 import registerRoutes from "./routes/register.js";
 import websiteRoutes from "./routes/websites.js";
 import adminRoutes from "./routes/admin.js";
+import {posthog} from "./posthog.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -78,11 +79,12 @@ app.get("/api/health", (_req, res) => {
 app.use(
   (
     err: Error,
-    _req: express.Request,
+    req: express.Request,
     res: express.Response,
     _next: express.NextFunction,
   ) => {
     console.error(err);
+    posthog.captureException(err, req.user?.userId);
     res.status(500).json({ error: "Internal server error" });
   },
 );

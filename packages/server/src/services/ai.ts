@@ -1,7 +1,13 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { Anthropic } from "@posthog/ai";
 import {cacheCategory, DEFAULT_CATEGORIES} from "../utils/categories.js";
+import {posthog} from "../posthog.js";
 
-export const client = new Anthropic();
+// @posthog/ai wraps @anthropic-ai/sdk with PostHog analytics
+// apiKey is read from ANTHROPIC_API_KEY env var by the underlying SDK
+export const client = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  posthog,
+});
 
 let aiCallCount = 0;
 
@@ -15,12 +21,14 @@ export function getAICallCount(): number {
  */
 export async function categorizeBatchWithAI(
   ingredientNames: string[],
+  distinctId?: string,
 ): Promise<Record<string, string>> {
   if (ingredientNames.length === 0) return {};
 
   aiCallCount++;
 
-  const response = await client.messages.create({
+  // @posthog/ai types don't include MonitoringParams on the non-streaming overload
+  const response = await (client.messages.create as any)({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 1024,
     messages: [
@@ -36,6 +44,7 @@ Respond with ONLY valid JSON: {"ingredient_name": "category", ...}
 Use exact category names from the list above. Use "Overig" if unsure.`,
       },
     ],
+    posthogDistinctId: distinctId,
   });
 
   try {

@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {useNavigate, useParams} from "react-router-dom";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {usePostHog} from "@posthog/react";
 import {apiFetch} from "../api/client.js";
 
 interface Ingredient {
@@ -81,6 +82,7 @@ export default function RecipeDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const [adding, setAdding] = useState(false);
   const [addedToPlanId, setAddedToPlanId] = useState<string | null>(null);
   const [showWeekPicker, setShowWeekPicker] = useState(false);
@@ -112,6 +114,7 @@ export default function RecipeDetail() {
           servings: recipe.servings,
         }),
       });
+      posthog.capture("recipe_added_to_plan_from_detail", { recipe_id: recipe.id, recipe_title: recipe.title, plan_id: planId });
       setAddedToPlanId(planId);
       queryClient.invalidateQueries({ queryKey: ["all-plans"] });
     } catch {
@@ -137,6 +140,7 @@ export default function RecipeDetail() {
           servings: recipe.servings,
         }),
       });
+      posthog.capture("recipe_added_to_plan_from_detail", { recipe_id: recipe.id, recipe_title: recipe.title, plan_id: newPlan.id, new_plan: true });
       setAddedToPlanId(newPlan.id);
       queryClient.invalidateQueries({ queryKey: ["all-plans"] });
     } catch {
@@ -153,9 +157,11 @@ export default function RecipeDetail() {
   const handleDelete = async () => {
     try {
       await apiFetch(`/recipes/${id}`, { method: "DELETE" });
+      posthog.capture("recipe_deleted", { recipe_id: id, recipe_title: recipe?.title });
       queryClient.invalidateQueries({ queryKey: ["recipes"] });
       navigate("/recipes");
     } catch (err) {
+      posthog.captureException(err);
       console.error("Delete recipe failed:", err);
     }
   };

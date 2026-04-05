@@ -1,5 +1,6 @@
 import {useState} from "react";
 import {useNavigate} from "react-router-dom";
+import {usePostHog} from "@posthog/react";
 import {authClient} from "../lib/auth-client.js";
 
 export default function Register() {
@@ -9,6 +10,7 @@ export default function Register() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<"form" | "passkey">("form");
   const navigate = useNavigate();
+  const posthog = usePostHog();
 
   const handleSubmit = async () => {
     if (!name.trim() || !householdName.trim()) {
@@ -37,8 +39,14 @@ export default function Register() {
         await authClient.organization.setActive({ organizationId: orgs.data[0].id });
       }
 
+      const session = await authClient.getSession();
+      if (session.data?.user) {
+        posthog.identify(session.data.user.id, { name: session.data.user.name, email: session.data.user.email });
+      }
+      posthog.capture("user_registered", { name: name.trim(), household_name: householdName.trim() });
       setStep("passkey");
     } catch (err: any) {
+      posthog.captureException(err);
       setError(err.message || "Registratie mislukt");
     } finally {
       setLoading(false);
@@ -51,8 +59,10 @@ export default function Register() {
     try {
       const result = await authClient.passkey.addPasskey();
       if (result?.error) throw new Error(String(result.error.message || "Passkey instellen mislukt"));
+      posthog.capture("passkey_setup_completed");
       navigate("/waiting");
     } catch (err: any) {
+      posthog.captureException(err);
       setError(err.message || "Passkey instellen mislukt");
       // Still navigate to waiting — they can set up passkey later via recovery
       navigate("/waiting");

@@ -19,7 +19,7 @@ interface ScrapedRecipe {
   }[];
 }
 
-export async function scrapeRecipe(url: string): Promise<ScrapedRecipe> {
+export async function scrapeRecipe(url: string, distinctId?: string): Promise<ScrapedRecipe> {
   const prompt = `Ga naar deze URL en extraheer het recept: ${url}
 
 Antwoord ALLEEN met een JSON object (geen markdown, geen uitleg) met deze velden:
@@ -40,7 +40,10 @@ Antwoord ALLEEN met een JSON object (geen markdown, geen uitleg) met deze velden
 Negeer keukengerei en gereedschap in de ingrediëntenlijst.
 Als je een veld niet kunt vinden, gebruik dan een standaardwaarde (4 personen, null voor tijden).`;
 
-  let response = await client.messages.create({
+  // @posthog/ai types don't include MonitoringParams on the non-streaming overload
+  const create = client.messages.create.bind(client.messages) as any;
+
+  let response = await create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 4096,
     tools: [
@@ -50,12 +53,13 @@ Als je een veld niet kunt vinden, gebruik dan een standaardwaarde (4 personen, n
       },
     ],
     messages: [{ role: "user", content: prompt }],
+    posthogDistinctId: distinctId,
   });
 
   // Handle pause_turn (server-side tool loop continuation)
   let continuations = 0;
   while (response.stop_reason === "pause_turn" && continuations < 3) {
-    response = await client.messages.create({
+    response = await create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 4096,
       tools: [{ type: "web_search_20250305", name: "web_search" }],
@@ -63,14 +67,15 @@ Als je een veld niet kunt vinden, gebruik dan een standaardwaarde (4 personen, n
         { role: "user", content: prompt },
         { role: "assistant", content: response.content },
       ],
+      posthogDistinctId: distinctId,
     });
     continuations++;
   }
 
   // Extract text from response
   const text = response.content
-    .filter((block) => block.type === "text")
-    .map((block) => (block as { type: "text"; text: string }).text)
+    .filter((block: any) => block.type === "text")
+    .map((block: any) => block.text)
     .join("\n");
 
   // Parse JSON from response (may be wrapped in code fences)

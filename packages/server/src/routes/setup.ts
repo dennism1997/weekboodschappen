@@ -6,6 +6,7 @@ import {count} from "drizzle-orm";
 import {auth} from "../auth.js";
 import {refreshCachedSuggestions} from "../services/suggestions.js";
 import {favoriteWebsite} from "../db/schema.js";
+import {posthog} from "../posthog.js";
 
 const router = Router();
 
@@ -106,6 +107,19 @@ router.post("/", async (req, res) => {
   // Generate initial suggestions for the new household (async, don't block response)
   refreshCachedSuggestions(orgId).catch((err) => {
     console.error("Failed to generate initial suggestions:", err);
+  });
+
+  posthog.identify({
+    distinctId: signUpResponse.user.id,
+    properties: {
+      $set: { name, household_name: householdName, role: "owner" },
+      $set_once: { first_seen: now.toISOString() },
+    },
+  });
+  posthog.capture({
+    distinctId: signUpResponse.user.id,
+    event: "user signed up",
+    properties: { signup_method: "setup", household_name: householdName, role: "owner" },
   });
 
   res.json({ success: true, userId: signUpResponse.user.id, recoveryCode });

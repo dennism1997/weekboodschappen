@@ -8,6 +8,7 @@ import {categorizeBatchWithAI} from "../services/ai.js";
 import {categorizeIngredientSync} from "../utils/categories.js";
 import {scrapeRecipeSchema, validate} from "../validation/schemas.js";
 import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
+import {posthog} from "../posthog.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -16,7 +17,7 @@ router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, 
   const { url } = req.body;
 
   try {
-    const scraped = await scrapeRecipe(url);
+    const scraped = await scrapeRecipe(url, req.user!.userId);
 
     // Find ingredients that couldn't be categorized statically
     const unknowns = scraped.ingredients
@@ -26,7 +27,7 @@ router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, 
     // Use AI to categorize unknowns
     if (unknowns.length > 0) {
       try {
-        const aiCategories = await categorizeBatchWithAI(unknowns);
+        const aiCategories = await categorizeBatchWithAI(unknowns, req.user!.userId);
         for (const ing of scraped.ingredients) {
           if (categorizeIngredientSync(ing.name) === null && aiCategories[ing.name]) {
             ing.category = aiCategories[ing.name];
@@ -62,8 +63,19 @@ router.post("/scrape", aiRateLimiter, validate(scrapeRecipeSchema), async (req, 
       .run();
 
     const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
+    posthog.capture({
+      distinctId: req.user!.userId,
+      event: "recipe scraped",
+      properties: {
+        recipe_id: id,
+        recipe_title: scraped.title,
+        source_url: scraped.sourceUrl,
+        ingredient_count: scraped.ingredients.length,
+      },
+    });
     res.json(saved);
   } catch (err: any) {
+    posthog.captureException(err, req.user!.userId, { url: req.body.url });
     res.status(422).json({ error: `Failed to scrape recipe: ${err.message}` });
   }
 });
@@ -79,7 +91,7 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
   // If we have a URL, scrape the full recipe (includes instructions, image, etc.)
   if (recipeUrl) {
     try {
-      const scraped = await scrapeRecipe(recipeUrl);
+      const scraped = await scrapeRecipe(recipeUrl, req.user!.userId);
       let stepNum = 1;
       const cleanedInstructions = scraped.instructions
         .filter((s) => !(/^\*\*[^*]+\*\*$/.test(s.text.trim())))
@@ -103,9 +115,20 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
         .run();
 
       const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
+      posthog.capture({
+        distinctId: req.user!.userId,
+        event: "recipe added from suggestion",
+        properties: {
+          recipe_id: id,
+          recipe_title: scraped.title,
+          source: "scrape",
+          has_url: true,
+        },
+      });
       res.json(saved);
       return;
     } catch (err: any) {
+      posthog.captureException(err, req.user!.userId, { recipe_url: recipeUrl });
       res.status(422).json({ error: `Failed to scrape recipe: ${err.message}` });
       return;
     }
@@ -127,7 +150,7 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
 
   if (unknowns.length > 0) {
     try {
-      const aiCategories = await categorizeBatchWithAI(unknowns);
+      const aiCategories = await categorizeBatchWithAI(unknowns, req.user!.userId);
       for (const ing of categorized) {
         if (ing.category === "Overig" && aiCategories[ing.name]) {
           ing.category = aiCategories[ing.name];
@@ -152,6 +175,16 @@ router.post("/from-suggestion", aiRateLimiter, async (req, res) => {
     .run();
 
   const saved = db.select().from(recipe).where(eq(recipe.id, id)).get();
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "recipe added from suggestion",
+    properties: {
+      recipe_id: id,
+      recipe_title: title,
+      source: "suggestion_data",
+      has_url: false,
+    },
+  });
   res.json(saved);
 });
 
@@ -250,6 +283,11 @@ router.delete("/:id", (req, res) => {
   db.update(groceryItem).set({ sourceRecipeId: null }).where(eq(groceryItem.sourceRecipeId, req.params.id)).run();
   db.delete(weeklyPlanRecipe).where(eq(weeklyPlanRecipe.recipeId, req.params.id)).run();
   db.delete(recipe).where(eq(recipe.id, req.params.id)).run();
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "recipe deleted",
+    properties: { recipe_id: existing.id, recipe_title: existing.title },
+  });
   res.json({ ok: true });
 });
 
@@ -276,7 +314,7 @@ router.post("/categorize", aiRateLimiter, async (req, res) => {
   // Use AI for unknowns
   if (unknowns.length > 0) {
     try {
-      const aiResult = await categorizeBatchWithAI(unknowns);
+      const aiResult = await categorizeBatchWithAI(unknowns, req.user!.userId);
       Object.assign(result, aiResult);
     } catch {
       for (const name of unknowns) {

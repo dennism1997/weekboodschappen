@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {usePostHog} from "@posthog/react";
 import {apiFetch} from "../api/client.js";
 import RecipeCard from "../components/RecipeCard.js";
 
@@ -57,6 +58,7 @@ function getUpcomingWeeks(count: number): { weekStart: string; label: string }[]
 
 export default function Recipes() {
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [scrapeUrl, setScrapeUrl] = useState("");
@@ -146,9 +148,11 @@ export default function Recipes() {
         method: "POST",
         body: JSON.stringify({ url: scrapeUrl.trim() }),
       });
+      posthog.capture("recipe_scraped", { url: scrapeUrl.trim() });
       setScrapeUrl("");
       refetch();
     } catch (err: any) {
+      posthog.captureException(err);
       setScrapeError(err.message || "Kon recept niet ophalen");
     } finally {
       setScraping(false);

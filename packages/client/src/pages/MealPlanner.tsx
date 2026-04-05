@@ -1,6 +1,7 @@
 import {useEffect, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {usePostHog} from "@posthog/react";
 import {Bookmark, Pencil, Plus, RefreshCw, Trash2} from "lucide-react";
 import {apiFetch} from "../api/client";
 import {useAuth} from "../hooks/useAuth";
@@ -91,6 +92,7 @@ function getUpcomingWeeks(count: number): { weekStart: string; label: string }[]
 export default function MealPlanner() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   useAuth();
   const [creating, setCreating] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -215,6 +217,7 @@ export default function MealPlanner() {
         body: JSON.stringify(weekStart ? { weekStart } : {}),
       });
       setSelectedPlanId(newPlan.id);
+      posthog.capture("meal_plan_created", { week_start: newPlan.weekStart });
       invalidatePlans();
     } catch {
       // ignore
@@ -283,6 +286,7 @@ export default function MealPlanner() {
           servings: recipe.servings,
         }),
       });
+      posthog.capture("recipe_added_to_plan", { recipe_id: recipe.id, recipe_title: recipe.title, plan_id: currentPlan.id });
       setRecipeSearch("");
       await invalidatePlans();
       await invalidateSuggestions();
@@ -345,6 +349,7 @@ export default function MealPlanner() {
       // Save: create recipe from suggestion
       const newId = await saveSuggestionAsRecipe(rec);
       if (newId) {
+        posthog.capture("suggestion_saved_as_recipe", { recipe_title: rec.title, source: rec.source });
         setSavedSuggestions((prev) => ({ ...prev, [index]: newId }));
         invalidateSuggestions();
       }
@@ -388,6 +393,7 @@ export default function MealPlanner() {
         method: "POST",
         body: JSON.stringify({}),
       });
+      posthog.capture("grocery_list_generated", { plan_id: currentPlan.id, recipe_count: currentPlan.recipes.length });
       navigate("/list");
     } catch {
       // ignore

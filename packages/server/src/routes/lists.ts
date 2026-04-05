@@ -1,15 +1,13 @@
 import {Router} from "express";
-import Anthropic from "@anthropic-ai/sdk";
 import {db} from "../db/connection.js";
 import {groceryItem, groceryList,} from "../db/schema.js";
 import {and, eq} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {recordShoppingTrip} from "../services/learning.js";
 import {categorizeIngredientSync} from "../utils/categories.js";
-import {categorizeBatchWithAI} from "../services/ai.js";
+import {categorizeBatchWithAI, client as ai} from "../services/ai.js";
 import {aiRateLimiter} from "../middleware/ai-rate-limit.js";
-
-const ai = new Anthropic();
+import {posthog} from "../posthog.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -199,7 +197,7 @@ router.post("/:id/items", aiRateLimiter, async (req, res) => {
   if (!resolvedCategory) {
     resolvedCategory = categorizeIngredientSync(name);
     if (!resolvedCategory) {
-      const aiResult = await categorizeBatchWithAI([name.trim()]);
+      const aiResult = await categorizeBatchWithAI([name.trim()], req.user!.userId);
       resolvedCategory = aiResult[name.trim()] || "Overig";
     }
   }
@@ -228,6 +226,11 @@ router.post("/:id/items", aiRateLimiter, async (req, res) => {
     .run();
 
   const created = db.select().from(groceryItem).where(eq(groceryItem.id, id)).get();
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "grocery item added",
+    properties: { list_id: listId, item_name: name, category: resolvedCategory },
+  });
   res.status(201).json(created);
 });
 
@@ -242,6 +245,11 @@ router.post("/:id/finalize", (req, res) => {
   }
 
   const itemsRecorded = recordShoppingTrip(listId, householdId);
+  posthog.capture({
+    distinctId: req.user!.userId,
+    event: "shopping trip completed",
+    properties: { list_id: listId, items_recorded: itemsRecorded },
+  });
   res.json({ ok: true, itemsRecorded });
 });
 
@@ -304,10 +312,11 @@ Antwoord ALLEEN met geldige JSON:
 }`;
 
   try {
-    const response = await ai.messages.create({
+    const response = await (ai.messages.create as any)({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 2048,
       messages: [{ role: "user", content: prompt }],
+      posthogDistinctId: req.user!.userId,
     });
 
     const text = response.content[0].type === "text" ? response.content[0].text : "";
@@ -354,6 +363,15 @@ Antwoord ALLEEN met geldige JSON:
         source: item.source === "staple" ? "basis" : item.source === "manual" ? "handmatig" : "recept",
       }));
 
+    posthog.capture({
+      distinctId: req.user!.userId,
+      event: "grocery list cleaned up",
+      properties: {
+        list_id: listId,
+        items_deleted: result.deleteIds.length,
+        items_updated: result.updates.length,
+      },
+    });
     res.json({
       summary: result.summary,
       deleted: result.deleteIds.length,
@@ -361,6 +379,7 @@ Antwoord ALLEEN met geldige JSON:
       items: updatedItems,
     });
   } catch (err: any) {
+    posthog.captureException(err, req.user!.userId, { list_id: listId });
     res.status(500).json({ error: `Cleanup failed: ${err.message}` });
   }
 });

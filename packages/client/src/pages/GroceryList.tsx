@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {usePostHog} from "@posthog/react";
 import {DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent} from "@dnd-kit/core";
 import {apiFetch} from "../api/client";
 import CategoryGroup from "../components/CategoryGroup";
@@ -39,6 +40,7 @@ const STORE_API_KEY: Record<string, string> = {
 export default function GroceryList() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const posthog = usePostHog();
   const [quickAdd, setQuickAdd] = useState("");
   const [store, setStore] = useState("Jumbo");
   const [cleaning, setCleaning] = useState(false);
@@ -144,6 +146,7 @@ export default function GroceryList() {
           source: "handmatig",
         }),
       });
+      posthog.capture("grocery_item_added", { item_name: quickAdd.trim() });
       setQuickAdd("");
       await invalidate();
     } catch {
@@ -361,7 +364,7 @@ export default function GroceryList() {
 
       {/* Start shopping */}
       <button
-        onClick={() => navigate("/shop")}
+        onClick={() => { posthog.capture("shopping_started", { total_items: totalItems }); navigate("/shop"); }}
         className="mt-4 w-full rounded-[14px] bg-accent py-4 text-[17px] font-semibold text-white"
       >
         Winkelen starten

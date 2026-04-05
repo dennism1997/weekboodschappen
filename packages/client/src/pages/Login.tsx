@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useQuery} from "@tanstack/react-query";
+import {usePostHog} from "@posthog/react";
 import {authClient} from "../lib/auth-client.js";
 
 export default function Login() {
@@ -10,6 +11,7 @@ export default function Login() {
   const [recoveryCode, setRecoveryCode] = useState("");
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const navigate = useNavigate();
+  const posthog = usePostHog();
 
   const { isLoading: checking } = useQuery({
     queryKey: ["setup-status"],
@@ -37,8 +39,13 @@ export default function Login() {
       if (orgs.data && orgs.data.length > 0) {
         await authClient.organization.setActive({ organizationId: orgs.data[0].id });
       }
+      if (result?.data?.user) {
+        posthog.identify(result.data.user.id, { name: result.data.user.name, email: result.data.user.email });
+      }
+      posthog.capture("user_logged_in");
       navigate("/planner");
     } catch (err: any) {
+      posthog.captureException(err);
       setError(err.message || "Passkey login mislukt");
     } finally {
       setLoading(false);

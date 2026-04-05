@@ -1,6 +1,7 @@
 import {useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {useQuery, useQueryClient} from "@tanstack/react-query";
+import {usePostHog} from "@posthog/react";
 import {apiFetch} from "../api/client";
 import {useOfflineQueue} from "../hooks/useOfflineQueue";
 import DiscountBadge from "../components/DiscountBadge";
@@ -35,6 +36,7 @@ interface Plan {
 export default function ShoppingMode() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
+    const posthog = usePostHog();
     const [addText, setAddText] = useState("");
     const [finalizing, setFinalizing] = useState(false);
     const {enqueue, isOnline} = useOfflineQueue();
@@ -276,6 +278,7 @@ export default function ShoppingMode() {
                                     await apiFetch(`/lists/${list.id}/finalize`, {
                                         method: "POST",
                                     });
+                                    posthog.capture("shopping_completed", { total_items: total, checked_items: done });
                                     navigate("/list");
                                 } catch {
                                     setFinalizing(false);

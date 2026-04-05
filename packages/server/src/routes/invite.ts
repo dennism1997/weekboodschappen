@@ -5,6 +5,7 @@ import {invitation, member, organization, session, user} from "../db/auth-schema
 import {and, desc, eq} from "drizzle-orm";
 import {requireAuth} from "../middleware/auth.js";
 import {auth} from "../auth.js";
+import {posthog} from "../posthog.js";
 
 const router = Router();
 
@@ -99,6 +100,12 @@ router.post("/create", requireAuth, async (req, res) => {
     expiresAt,
     createdAt: now,
     inviterId: req.user.userId,
+  });
+
+  posthog.capture({
+    distinctId: req.user.userId,
+    event: "invite created",
+    properties: { household_id: req.user.householdId },
   });
 
   const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
@@ -204,6 +211,19 @@ router.post("/:token/accept", async (req, res) => {
   for (const cookie of setCookies) {
     res.append("Set-Cookie", cookie);
   }
+
+  posthog.identify({
+    distinctId: signUpResponse.user.id,
+    properties: {
+      $set: { name, role: "member" },
+      $set_once: { first_seen: new Date().toISOString() },
+    },
+  });
+  posthog.capture({
+    distinctId: signUpResponse.user.id,
+    event: "user signed up",
+    properties: { signup_method: "invite", role: "member", household_id: invite.organizationId },
+  });
 
   res.json({ success: true, userId: signUpResponse.user.id });
 });

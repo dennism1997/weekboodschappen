@@ -5,6 +5,7 @@ import {member, organization, user} from "../db/auth-schema.js";
 import {count} from "drizzle-orm";
 import {auth} from "../auth.js";
 import {sendPushoverNotification} from "../services/pushover.js";
+import {posthog} from "../posthog.js";
 
 const router = Router();
 
@@ -81,6 +82,19 @@ router.post("/", async (req, res) => {
     title: "Nieuw huishouden",
     message: `Nieuw huishouden wil toegang: ${householdName} (door ${name})`,
   }).catch(() => {});
+
+  posthog.identify({
+    distinctId: signUpResponse.user.id,
+    properties: {
+      $set: { name, household_name: householdName, role: "owner" },
+      $set_once: { first_seen: now.toISOString() },
+    },
+  });
+  posthog.capture({
+    distinctId: signUpResponse.user.id,
+    event: "user signed up",
+    properties: { signup_method: "register", household_name: householdName, role: "owner" },
+  });
 
   res.json({ success: true, userId: signUpResponse.user.id });
 });
