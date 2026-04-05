@@ -138,14 +138,35 @@ export function generateGroceryList(planId: string, householdId: string) {
     return a.name.localeCompare(b.name, "nl");
   });
 
-  // 8. Create grocery list and insert items
-  const listId = crypto.randomUUID();
-  db.insert(groceryList)
-    .values({
-      id: listId,
-      weeklyPlanId: planId,
-    })
-    .run();
+  // 8. Reuse existing list or create a new one; preserve manual items
+  const existingList = db
+    .select()
+    .from(groceryList)
+    .where(eq(groceryList.weeklyPlanId, planId))
+    .get();
+
+  const listId = existingList?.id ?? crypto.randomUUID();
+
+  if (existingList) {
+    // Delete only recipe and staple items — keep manual items
+    const existingItems = db
+      .select()
+      .from(groceryItem)
+      .where(eq(groceryItem.groceryListId, listId))
+      .all();
+    for (const item of existingItems) {
+      if (item.source !== "manual") {
+        db.delete(groceryItem).where(eq(groceryItem.id, item.id)).run();
+      }
+    }
+  } else {
+    db.insert(groceryList)
+      .values({
+        id: listId,
+        weeklyPlanId: planId,
+      })
+      .run();
+  }
 
   for (let i = 0; i < sortedItems.length; i++) {
     const item = sortedItems[i];
