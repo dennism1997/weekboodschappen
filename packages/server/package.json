@@ -17,7 +17,7 @@
     "test:docker": "vitest run src/test/docker.test.ts --testTimeout=180000"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.91.1",
     "@better-auth/passkey": "^1.5.6",
     "@posthog/ai": "^7.12.8",
     "@simplewebauthn/server": "^13.3.0",
@@ -27,7 +27,7 @@
     "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "drizzle-orm": "^0.45.1",
+    "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
@@ -48,7 +48,7 @@
     "@types/node-cron": "^3.0.11",
     "@types/supertest": "^7.2.0",
     "drizzle-kit": "^0.31.10",
-    "esbuild": "^0.27.4",
+    "esbuild": "^0.27.5",
     "supertest": "^7.2.2",
     "testcontainers": "^11.13.0",
     "tsx": "^4.21.0",
